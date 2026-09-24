@@ -1,15 +1,15 @@
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
+    container_name: afm-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: airport_fuel
-      POSTGRES_USER: airport_fuel
-      POSTGRES_PASSWORD: airport_fuel
+      POSTGRES_DB: afm
+      POSTGRES_USER: afm_user
+      POSTGRES_PASSWORD: change_me
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+      - afm-postgres-data:/var/lib/postgresql/data
 volumes:
-  postgres_data:
-
+  afm-postgres-data:
