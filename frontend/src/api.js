@@ -1,20 +1,34 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+import axios from "axios";
 
-async function request(path, options = {}) {
-  const token = localStorage.getItem('afm_token')
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail || 'Request failed')
-  }
-  return response.status === 204 ? null : response.json()
-}
-export const api = {
-  login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  me: () => request('/auth/me'),
-  dashboard: () => request('/dashboard'),
-  list: (type, search = '') => request(`/${type}${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  create: (type, data) => request(`/${type}`, { method: 'POST', body: JSON.stringify(data) }),
-  update: (type, id, data) => request(`/${type}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  remove: (type, id) => request(`/${type}/${id}`, { method: 'DELETE' }),
-}
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
+  withCredentials: true,
+});
+api.interceptors.request.use((config) => {
+  const csrf = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith("afm_csrf="))
+    ?.split("=")
+    .slice(1)
+    .join("=");
+  if (
+    csrf &&
+    !["get", "head", "options"].includes(config.method?.toLowerCase())
+  )
+    config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
+  return config;
+});
+api.interceptors.response.use(
+  (value) => value,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      !location.pathname.startsWith("/login")
+    )
+      window.dispatchEvent(new Event("afm:unauthorized"));
+    return Promise.reject(error);
+  },
+);
+
+export const errorMessage = (error) =>
+  error.response?.data?.detail || error.message || "Request failed";

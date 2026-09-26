@@ -1,0 +1,81 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: afm
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: afm_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U afm -d afm_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://afm:testpass@localhost:5432/afm_test
+      JWT_SECRET: ci-only-secret-key-please-replace-with-random-value
+      CSRF_SECRET: ci-csrf-secret-please-use-32-random-bytes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: pip install -r requirements.lock
+      - run: ruff check backend
+      - run: ruff format --check backend
+      - run: alembic upgrade head
+      - run: alembic check
+      - run: pytest --cov=backend/app --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: backend-coverage, path: coverage.xml }
+  frontend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: afm
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: afm_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U afm -d afm_e2e"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://afm:testpass@localhost:5432/afm_e2e
+      JWT_SECRET: ci-only-secret-key-please-replace-with-random-value
+      CSRF_SECRET: ci-csrf-secret-please-use-32-random-bytes
+      COOKIE_SECURE: "false"
+      FRONTEND_ORIGINS: http://127.0.0.1:5173
+      E2E_USERNAME: ci-admin
+      E2E_PASSWORD: ci-only-e2e-password-not-for-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: pip install -r requirements.lock
+      - run: alembic upgrade head
+      - run: python -m backend.app.cli create-admin --username "$E2E_USERNAME" --password "$E2E_PASSWORD"
+      - run: uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 > /tmp/afm-api.log 2>&1 &
+      - run: for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; cat /tmp/afm-api.log; exit 1
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run format:check
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend

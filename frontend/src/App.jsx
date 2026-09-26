@@ -1,30 +1,295 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowUpRight, BarChart3, Check, ChevronRight, CircleDollarSign, FileText, Fuel, LayoutDashboard, LogOut, Menu, Plane, Plus, Search, Settings2, ShieldCheck, Users, X } from 'lucide-react'
-import { api } from './api'
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { api, errorMessage } from "./api";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const EntityPage = lazy(() => import("./pages/Entities"));
+const Rates = lazy(() => import("./pages/Rates"));
+const Invoices = lazy(() => import("./pages/Invoices"));
+const InvoiceForm = lazy(() => import("./pages/InvoiceForm"));
+const InvoiceDetail = lazy(() => import("./pages/InvoiceDetail"));
 
-const nav = [{ key: 'dashboard', label: 'Overview', icon: LayoutDashboard }, { key: 'invoices', label: 'Invoices', icon: FileText }, { key: 'rates', label: 'Fuel rates', icon: Fuel }, { key: 'providers', label: 'Providers', icon: Users }, { key: 'airlines', label: 'Airlines', icon: Plane }]
-const emptyForm = { code: '', name: '', contact_email: '', contact_phone: '', is_active: true }
+const nav = [
+  ["Dashboard", "/", "bi-grid-1x2"],
+  ["Fuel providers", "/providers", "bi-fuel-pump"],
+  ["Airlines", "/airlines", "bi-airplane"],
+  ["Fuel rates", "/rates", "bi-tags"],
+  ["Invoices", "/invoices", "bi-receipt"],
+];
 
-function Login({ onLogin }) {
-  const [form, setForm] = useState({ email: '', password: '' }); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  async function submit(e) { e.preventDefault(); setBusy(true); setError(''); try { const result = await api.login(form); localStorage.setItem('afm_token', result.access_token); onLogin(result.user_email) } catch (err) { setError(err.message) } finally { setBusy(false) } }
-  return <main className="login-shell"><div className="login-panel"><div className="brand-mark"><Fuel size={22} /></div><p className="eyebrow">Operations console</p><h1>Airport Fuel<br /><em>Management</em></h1><p className="login-copy">A clear view of every litre, rate, and monthly settlement.</p><form onSubmit={submit} className="stack"><label>Administrator email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="admin@afm.local" /></label><label>Password<input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="••••••••" /></label>{error && <div className="error-box"><AlertCircle size={16} />{error}</div>}<button className="primary wide" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}<ChevronRight size={17} /></button></form><p className="login-foot"><ShieldCheck size={14} /> Protected administrator access</p></div><div className="login-art"><div className="art-copy"><span>AFM / 01</span><strong>Fuel intelligence<br />for the apron.</strong><small>Rates, suppliers and settlements in one operational record.</small></div><div className="radar" /></div></main>
+function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const loc = useLocation();
+  const refresh = useCallback(async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser(data);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    refresh();
+    const unauth = () => setUser(null);
+    window.addEventListener("afm:unauthorized", unauth);
+    return () => window.removeEventListener("afm:unauthorized", unauth);
+  }, [refresh]);
+  if (loading)
+    return (
+      <div className="screen-center">
+        <span className="spinner-border text-primary" />
+      </div>
+    );
+  return (
+    <Suspense
+      fallback={
+        <div className="screen-center" role="status">
+          <span className="spinner-border text-primary" />
+          <span className="visually-hidden">Loading page</span>
+        </div>
+      }
+    >
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            user ? <Navigate to="/" replace /> : <Login onLogin={refresh} />
+          }
+        />
+        <Route
+          path="*"
+          element={
+            user ? (
+              <Shell user={user} setUser={setUser} key={loc.pathname} />
+            ) : (
+              <Navigate to="/login" replace state={{ from: loc }} />
+            )
+          }
+        />
+      </Routes>
+    </Suspense>
+  );
 }
 
-function Shell({ user, page, setPage, onLogout, children }) { return <div className="app-shell"><aside><div className="side-brand"><div className="brand-mark small"><Fuel size={17} /></div><span>AFM <small>ADMIN</small></span></div><div className="side-label">Workspace</div><nav>{nav.map(item => { const Icon = item.icon; return <button className={page === item.key ? 'nav-item active' : 'nav-item'} onClick={() => setPage(item.key)} key={item.key}><Icon size={17} />{item.label}{page === item.key && <ChevronRight className="nav-arrow" size={14} />}</button> })}</nav><div className="side-bottom"><div className="system-status"><span className="pulse" /> System connected</div><button className="logout" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></aside><section className="main-area"><header><button className="mobile-menu"><Menu size={20} /></button><div><p className="breadcrumb">AFM / {page}</p><h2>{nav.find(item => item.key === page)?.label || 'Overview'}</h2></div><div className="header-user"><div className="avatar">{user?.slice(0, 1).toUpperCase()}</div><span>{user}</span><Settings2 size={16} /></div></header>{children}</section></div> }
+function Login({ onLogin }) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = useNavigate();
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const f = new FormData(e.currentTarget);
+    try {
+      await api.post("/auth/login", {
+        username: f.get("username"),
+        password: f.get("password"),
+      });
+      await onLogin();
+      go("/", { replace: true });
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="login-bg">
+      <div className="login-card">
+        <div className="brand-mark">
+          <i className="bi bi-fuel-pump-fill" />
+        </div>
+        <p className="eyebrow">OPERATIONS PLATFORM</p>
+        <h1>
+          Airport Fuel
+          <br />
+          Management
+        </h1>
+        <p className="muted">
+          Sign in to manage fueling and billing operations.
+        </p>
+        <form onSubmit={submit} className="vstack gap-3 mt-4">
+          <label>
+            Administrator username
+            <input
+              name="username"
+              className="form-control"
+              autoComplete="username"
+              required
+              autoFocus
+            />
+          </label>
+          <label>
+            Password
+            <input
+              name="password"
+              className="form-control"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && <div className="alert alert-danger py-2">{error}</div>}
+          <button className="btn btn-primary btn-lg" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}{" "}
+            <i className="bi bi-arrow-right ms-2" />
+          </button>
+        </form>
+        <div className="login-foot">SECURE ADMINISTRATOR ACCESS</div>
+      </div>
+    </main>
+  );
+}
 
-function Stat({ icon: Icon, label, value, accent }) { return <div className="stat"><div className={`stat-icon ${accent}`}><Icon size={19} /></div><div><span>{label}</span><strong>{value}</strong></div><ArrowUpRight className="stat-arrow" size={16} /></div> }
-function Toast({ message, error, onClose }) { useEffect(() => { const id = setTimeout(onClose, 3500); return () => clearTimeout(id) }, [onClose]); return <div className={error ? 'toast error' : 'toast'}>{error ? <AlertCircle size={17} /> : <Check size={17} />}{message}<button onClick={onClose}><X size={15} /></button></div> }
+function Shell({ user, setUser }) {
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
+  const go = useNavigate();
+  async function logout() {
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      setUser(null);
+      go("/login");
+    }
+  }
+  const title =
+    nav.find((x) => x[1] === loc.pathname)?.[0] || "Invoice details";
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
+        <div className="sidebar-brand">
+          <div className="brand-mark small">
+            <i className="bi bi-fuel-pump-fill" />
+          </div>
+          <div>
+            <b>AFM</b>
+            <small>FUEL OPERATIONS</small>
+          </div>
+          <button
+            className="btn btn-link d-lg-none ms-auto text-white"
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+          >
+            <i className="bi bi-x-lg" />
+          </button>
+        </div>
+        <div className="side-label">WORKSPACE</div>
+        <nav>
+          {nav.map(([name, path, icon]) => (
+            <Link
+              key={path}
+              onClick={() => setOpen(false)}
+              className={`nav-entry ${loc.pathname === path ? "active" : ""}`}
+              to={path}
+            >
+              <i className={`bi ${icon}`} />
+              <span>{name}</span>
+              {path === "/invoices" && (
+                <i className="bi bi-chevron-right ms-auto tiny" />
+              )}
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="status-pill">
+            <span /> SYSTEM OPERATIONAL
+          </div>
+          <div className="sidebar-version">
+            AIRPORT FUEL MANAGEMENT <span>v1.0</span>
+          </div>
+        </div>
+      </aside>
+      <div className="main-area">
+        <header className="topbar">
+          <button
+            className="btn menu-toggle d-lg-none"
+            onClick={() => setOpen(!open)}
+            aria-label="Open menu"
+          >
+            <i className="bi bi-list" />
+          </button>
+          <div className="crumb">
+            <span>Workspace</span>
+            <i className="bi bi-chevron-right" />
+            {title}
+          </div>
+          <div className="top-actions">
+            <span className="today-label">OPERATIONS CONSOLE</span>
+            <div className="top-divider" />
+            <div className="profile">
+              <div className="avatar">
+                {user.username.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="d-none d-sm-block">
+                <b>{user.username}</b>
+                <small>Administrator</small>
+              </div>
+              <button
+                className="btn btn-link text-secondary p-1"
+                onClick={logout}
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <i className="bi bi-box-arrow-right" />
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="page-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route
+              path="/providers"
+              element={
+                <EntityPage
+                  type="providers"
+                  title="Fuel providers"
+                  singular="Provider"
+                />
+              }
+            />
+            <Route
+              path="/airlines"
+              element={
+                <EntityPage
+                  type="airlines"
+                  title="Airlines"
+                  singular="Airline"
+                />
+              }
+            />
+            <Route path="/rates" element={<Rates />} />
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/invoices/new" element={<InvoiceForm />} />
+            <Route path="/invoices/:id/edit" element={<InvoiceForm />} />
+            <Route path="/invoices/:id" element={<InvoiceDetail />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <footer className="app-footer">
+          <span>© {new Date().getFullYear()} Airport Fuel Management</span>
+          <span>All amounts shown in invoice currency</span>
+        </footer>
+      </div>
+      {open && (
+        <button
+          className="backdrop d-lg-none"
+          onClick={() => setOpen(false)}
+          aria-label="Close navigation"
+        />
+      )}
+    </div>
+  );
+}
 
-function Dashboard({ data, setPage }) { return <div className="content"><div className="welcome"><div><p className="eyebrow">Wednesday, September 23, 2026</p><h1>Good morning, operator.</h1><p>Here is the latest movement across your fuel network.</p></div><button className="primary" onClick={() => setPage('invoices')}><Plus size={17} /> New invoice</button></div><div className="stats-grid"><Stat icon={Users} label="Fuel providers" value={data?.total_providers ?? '-'} accent="orange" /><Stat icon={Plane} label="Active airlines" value={data?.total_airlines ?? '-'} accent="blue" /><Stat icon={Fuel} label="Fuel rates" value={data?.total_rates ?? '-'} accent="green" /><Stat icon={FileText} label="Total invoices" value={data?.total_invoices ?? '-'} accent="violet" /></div><div className="dashboard-grid"><section className="panel recent-panel"><div className="panel-heading"><div><p className="eyebrow">Latest activity</p><h3>Recent invoices</h3></div><button className="text-button" onClick={() => setPage('invoices')}>View all <ArrowUpRight size={15} /></button></div>{data?.recent_invoices?.length ? <InvoiceTable rows={data.recent_invoices} compact /> : <EmptyState title="No invoices yet" copy="Create your first monthly settlement to see it here." />}</section><section className="panel amount-panel"><div className="ring-wrap"><div className="ring"><CircleDollarSign size={25} /></div></div><p className="eyebrow">Total billed volume</p><h3>{formatMoney(data?.total_invoice_amount || 0)}</h3><p>Across all recorded monthly invoices</p><div className="amount-line"><span>Ledger status</span><b><span className="pulse" /> Up to date</b></div></section></div></div> }
-function formatMoney(value, currency = 'USD') { return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0)) }
-function EmptyState({ title, copy }) { return <div className="empty"><div className="empty-icon"><FileText size={19} /></div><strong>{title}</strong><span>{copy}</span></div> }
-function InvoiceTable({ rows, compact }) { return <div className="table-wrap"><table><thead><tr><th>Reference</th><th>Airline</th><th>Provider</th><th>Billing month</th><th className="align-right">Total</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><b className="ref">{row.reference_number}</b></td><td>{row.airline?.name || '-'}</td><td>{row.provider?.name || '-'}</td><td>{row.billing_month?.slice(0, 7)}</td><td className="align-right"><b>{formatMoney(row.total_amount)}</b></td></tr>)}</tbody></table></div> }
-
-function ResourceForm({ type, initial, onSubmit, onClose, busy }) { const isRate = type === 'rates'; const [form, setForm] = useState(initial || (isRate ? { fuel_type: 'Jet A-1', rate: '', currency: 'USD', effective_date: new Date().toISOString().slice(0, 10) } : emptyForm)); const update = (key, value) => setForm({ ...form, [key]: value }); return <div className="modal-backdrop"><div className="modal"><div className="modal-head"><div><p className="eyebrow">{initial ? 'Edit record' : 'New record'}</p><h3>{isRate ? 'Fuel rate' : type === 'providers' ? 'Fuel provider' : 'Airline'}</h3></div><button className="icon-button" onClick={onClose}><X size={18} /></button></div><form className="form-grid" onSubmit={e => { e.preventDefault(); const payload = isRate ? { ...form, rate: Number(form.rate) } : { ...form, contact_email: form.contact_email?.trim() || null, contact_phone: form.contact_phone?.trim() || null }; onSubmit(payload) }}>{isRate ? <><label className="full">Fuel type<input required value={form.fuel_type} onChange={e => update('fuel_type', e.target.value)} /></label><label>Rate<input required min="0.0001" step="0.0001" type="number" value={form.rate} onChange={e => update('rate', e.target.value)} /></label><label>Currency<input required maxLength="3" value={form.currency} onChange={e => update('currency', e.target.value.toUpperCase())} /></label><label className="full">Effective date<input required type="date" value={form.effective_date} onChange={e => update('effective_date', e.target.value)} /></label></> : <><label>Code<input required maxLength="30" value={form.code} onChange={e => update('code', e.target.value.toUpperCase())} /></label><label>Name<input required value={form.name} onChange={e => update('name', e.target.value)} /></label><label>Email<input type="email" value={form.contact_email || ''} onChange={e => update('contact_email', e.target.value)} /></label><label>Phone<input value={form.contact_phone || ''} onChange={e => update('contact_phone', e.target.value)} /></label><label className="toggle full"><input type="checkbox" checked={form.is_active} onChange={e => update('is_active', e.target.checked)} /><span /> Active record</label></>}<div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving...' : initial ? 'Save changes' : 'Create record'}<Check size={16} /></button></div></form></div></div> }
-
-function ResourcePage({ type, title, rows, reload, toast }) { const [search, setSearch] = useState(''); const [editing, setEditing] = useState(null); const [busy, setBusy] = useState(false); const isRate = type === 'rates'; const filtered = isRate ? rows : rows.filter(row => `${row.code} ${row.name}`.toLowerCase().includes(search.toLowerCase())); async function save(data) { setBusy(true); try { editing?.id ? await api.update(type, editing.id, data) : await api.create(type, data); toast(editing ? 'Record updated' : 'Record created'); setEditing(null); reload() } catch (e) { toast(e.message, true) } finally { setBusy(false) } } return <div className="content"><div className="page-heading"><div><p className="eyebrow">Master data</p><h1>{title}</h1><p>Maintain the records that drive your monthly settlements.</p></div><button className="primary" onClick={() => setEditing({})}><Plus size={17} /> Add {isRate ? 'rate' : type === 'providers' ? 'provider' : 'airline'}</button></div><section className="panel list-panel"><div className="toolbar">{!isRate && <div className="search"><Search size={16} /><input placeholder={`Search ${type}...`} value={search} onChange={e => setSearch(e.target.value)} /></div>}<span className="result-count">{filtered.length} records</span></div>{filtered.length ? <div className="table-wrap"><table><thead><tr>{isRate ? <><th>Fuel type</th><th>Rate</th><th>Currency</th><th>Effective date</th><th>Status</th><th /></> : <><th>Code</th><th>Name</th><th>Contact</th><th>Status</th><th /></>}</tr></thead><tbody>{filtered.map(row => <tr key={row.id}>{isRate ? <><td><b>{row.fuel_type}</b></td><td className="number">{Number(row.rate).toFixed(4)}</td><td>{row.currency}</td><td>{row.effective_date}</td><td><span className="badge active">Current</span></td></> : <><td><b className="code-chip">{row.code}</b></td><td><b>{row.name}</b></td><td>{row.contact_email || row.contact_phone || '—'}</td><td><span className={row.is_active ? 'badge active' : 'badge'}>{row.is_active ? 'Active' : 'Inactive'}</span></td></>}<td className="align-right"><button className="edit-button" onClick={() => setEditing(row)}>Edit</button></td></tr>)}</tbody></table></div> : <EmptyState title="Nothing here yet" copy="Add a record to start building your network." />}</section>{editing && <ResourceForm type={type} initial={editing.id ? editing : null} onSubmit={save} onClose={() => setEditing(null)} busy={busy} />}</div> }
-
-function InvoicePage({ rows, providers, airlines, rates, reload, toast }) { const [editing, setEditing] = useState(null); const [search, setSearch] = useState(''); const [form, setForm] = useState({ provider_id: '', airline_id: '', fuel_rate_id: '', billing_month: new Date().toISOString().slice(0, 7), fuel_quantity: '' }); const [busy, setBusy] = useState(false); const filtered = rows.filter(row => `${row.reference_number} ${row.provider?.name} ${row.airline?.name}`.toLowerCase().includes(search.toLowerCase())); const selectedRate = rates.find(rate => String(rate.id) === String(form.fuel_rate_id)); const calculated = selectedRate && form.fuel_quantity ? Number(selectedRate.rate) * Number(form.fuel_quantity) : 0; function startEdit(row) { setEditing(row); setForm({ provider_id: row.provider_id, airline_id: row.airline_id, fuel_rate_id: row.fuel_rate_id, billing_month: row.billing_month.slice(0, 7), fuel_quantity: row.fuel_quantity }) } async function save(e) { e.preventDefault(); setBusy(true); try { const data = { ...form, provider_id: Number(form.provider_id), airline_id: Number(form.airline_id), fuel_rate_id: Number(form.fuel_rate_id), billing_month: `${form.billing_month}-01`, fuel_quantity: Number(form.fuel_quantity) }; editing ? await api.update('invoices', editing.id, data) : await api.create('invoices', data); toast(editing ? 'Invoice updated' : 'Invoice created'); setEditing(null); setForm({ provider_id: '', airline_id: '', fuel_rate_id: '', billing_month: new Date().toISOString().slice(0, 7), fuel_quantity: '' }); reload() } catch (err) { toast(err.message, true) } finally { setBusy(false) } } return <div className="content"><div className="page-heading"><div><p className="eyebrow">Financial ledger</p><h1>Monthly invoices</h1><p>Track airline settlements against delivered fuel volume.</p></div><button className="primary" onClick={() => setEditing({})}><Plus size={17} /> Create invoice</button></div><section className="panel list-panel"><div className="toolbar"><div className="search"><Search size={16} /><input placeholder="Search reference, airline, provider..." value={search} onChange={e => setSearch(e.target.value)} /></div><span className="result-count">{filtered.length} invoices</span></div>{filtered.length ? <div className="table-wrap"><table><thead><tr><th>Reference</th><th>Airline</th><th>Provider</th><th>Billing month</th><th>Quantity</th><th className="align-right">Total</th><th /></tr></thead><tbody>{filtered.map(row => <tr key={row.id}><td><b className="ref">{row.reference_number}</b></td><td>{row.airline?.name}</td><td>{row.provider?.name}</td><td>{row.billing_month.slice(0, 7)}</td><td>{Number(row.fuel_quantity).toLocaleString()} L</td><td className="align-right"><b>{formatMoney(row.total_amount)}</b></td><td className="align-right"><button className="edit-button" onClick={() => startEdit(row)}>Edit</button></td></tr>)}</tbody></table></div> : <EmptyState title="No invoices found" copy="Create a monthly invoice to populate the ledger." />}</section>{editing && <div className="modal-backdrop"><div className="modal invoice-modal"><div className="modal-head"><div><p className="eyebrow">{editing.id ? 'Edit settlement' : 'New settlement'}</p><h3>Monthly invoice</h3></div><button className="icon-button" onClick={() => setEditing(null)}><X size={18} /></button></div><form className="form-grid" onSubmit={save}><label>Fuel provider<select required value={form.provider_id} onChange={e => setForm({ ...form, provider_id: e.target.value })}><option value="">Select provider</option>{providers.filter(x => x.is_active).map(x => <option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</select></label><label>Airline<select required value={form.airline_id} onChange={e => setForm({ ...form, airline_id: e.target.value })}><option value="">Select airline</option>{airlines.filter(x => x.is_active).map(x => <option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</select></label><label>Billing month<input required type="month" value={form.billing_month} onChange={e => setForm({ ...form, billing_month: e.target.value })} /></label><label>Fuel rate<select required value={form.fuel_rate_id} onChange={e => setForm({ ...form, fuel_rate_id: e.target.value })}><option value="">Select rate</option>{rates.map(x => <option key={x.id} value={x.id}>{x.fuel_type} · {x.rate} {x.currency}</option>)}</select></label><label className="full">Fuel quantity (litres)<input required min="0.001" step="0.001" type="number" value={form.fuel_quantity} onChange={e => setForm({ ...form, fuel_quantity: e.target.value })} /></label><div className="calculation full"><span>Calculated total</span><strong>{formatMoney(calculated, selectedRate?.currency || 'USD')}</strong><small>{selectedRate ? `${Number(selectedRate.rate).toFixed(4)} ${selectedRate.currency} × ${Number(form.fuel_quantity || 0).toLocaleString()} L` : 'Select a fuel rate and quantity'}</small></div><div className="modal-actions"><button type="button" className="secondary" onClick={() => setEditing(null)}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving...' : editing.id ? 'Save invoice' : 'Create invoice'}<Check size={16} /></button></div></form></div></div>}</div> }
-
-export default function App() { const [user, setUser] = useState(null); const [page, setPage] = useState('dashboard'); const [data, setData] = useState({}); const [resources, setResources] = useState({ providers: [], airlines: [], rates: [], invoices: [] }); const [toastState, setToastState] = useState(null); const [loading, setLoading] = useState(true); const toast = (message, error = false) => setToastState({ message, error }); useEffect(() => { if (!localStorage.getItem('afm_token')) { setLoading(false); return } api.me().then(result => setUser(result.email)).catch(() => localStorage.removeItem('afm_token')).finally(() => setLoading(false)) }, []); useEffect(() => { if (!user) return; Promise.all([api.dashboard(), api.list('providers'), api.list('airlines'), api.list('rates'), api.list('invoices')]).then(([dashboard, providers, airlines, rates, invoices]) => { setData(dashboard); setResources({ providers, airlines, rates, invoices }) }).catch(err => toast(err.message, true)) }, [user, page]); function reload() { Promise.all([api.dashboard(), api.list('providers'), api.list('airlines'), api.list('rates'), api.list('invoices')]).then(([dashboard, providers, airlines, rates, invoices]) => { setData(dashboard); setResources({ providers, airlines, rates, invoices }) }).catch(err => toast(err.message, true)) } function logout() { localStorage.removeItem('afm_token'); setUser(null) } if (loading) return <div className="loading-screen"><Fuel size={25} /> Loading AFM</div>; if (!user) return <Login onLogin={setUser} />; const pageContent = page === 'dashboard' ? <Dashboard data={data} setPage={setPage} /> : page === 'invoices' ? <InvoicePage {...resources} reload={reload} toast={toast} /> : <ResourcePage type={page} title={page === 'rates' ? 'Fuel rates' : page === 'providers' ? 'Fuel providers' : 'Airlines'} rows={resources[page]} reload={reload} toast={toast} />; return <Shell user={user} page={page} setPage={setPage} onLogout={logout}>{pageContent}{toastState && <Toast {...toastState} onClose={() => setToastState(null)} />}</Shell> }
+export default App;
