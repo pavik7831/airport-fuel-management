@@ -119,7 +119,7 @@ Liveness is `/health/live`; readiness verifies database connectivity at `/health
 
 ## CI
 
-GitHub Actions runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
+GitHub Actions runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
 
 ## Limitations to address before a regulated production launch
 

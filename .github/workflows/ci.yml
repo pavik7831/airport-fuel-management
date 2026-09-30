@@ -88,6 +88,9 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      - name: Prettier format check
+        run: npm run format:check
+
       - name: Frontend tests
         run: npm test -- --run
 
