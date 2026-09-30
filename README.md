@@ -99,9 +99,9 @@ npm test
 npm run build
 ```
 
-Playwright requires a dedicated running API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, invoice creation and total verification, then logout. Install Chromium using `npx playwright install chromium`, then run `npm run test:e2e`.
+Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent overlapping rate writes, invoice creation and total verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
 
-The latest verification in this workspace passed 31 backend tests (80% total line coverage; 99% for invoice services; 95% for the admin CLI), 9 frontend tests, ESLint, Prettier checks, Ruff, an Alembic SQLite upgrade/check/downgrade cycle, PostgreSQL DDL compilation for the exclusion constraint, and a Vite production build. The Playwright journey assertions passed against a disposable local SQLite database, though the runner did not exit cleanly during Windows teardown. The GitHub Actions journey now also races overlapping rate requests against PostgreSQL and expects exactly one creation to succeed. CI has not been run from this workspace; Docker is unavailable here, so the PostgreSQL migration and race check still require CI execution.
+The latest local backend verification passed 64 tests with 100% statement coverage across 1,325 statements, along with Ruff lint and formatting checks. API and service tests use isolated SQLite databases; compatibility migrations and database helpers are also covered. PostgreSQL migrations and the browser journey run in GitHub Actions against PostgreSQL 16, and CI uploads backend coverage. GitHub Actions itself has not yet been run from this workspace.
 
 The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 328 kB CSS (49 kB gzip), plus Bootstrap icon fonts. Management pages load as separate route chunks; consider trimming unused Bootstrap CSS if the interface grows substantially.
 
@@ -119,11 +119,11 @@ Liveness is `/health/live`; readiness verifies database connectivity at `/health
 
 ## CI
 
-GitHub Actions runs Ruff, Alembic migration, pytest with coverage artifact, npm lockfile install, ESLint, Vitest, production build, and a Playwright journey against an ephemeral PostgreSQL-backed API. CI uses test-only credentials and database state.
+GitHub Actions runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
 
 ## Limitations to address before a regulated production launch
 
-- Expand endpoint, security and failure-path tests; current backend total coverage is 80% even though invoice service coverage is 99%.
-- Run Playwright against its dedicated test database and verify the PostgreSQL migration and simultaneous rate-write protection in CI before production use.
+- Maintain the 100% backend coverage gate as routes and services change.
+- Confirm the hosted Playwright run passes against PostgreSQL and retain its result before production use.
 - Add payment tracking before presenting outstanding receivables; dashboard intentionally omits it.
 - Perform a formal threat model, external dependency scan, accessibility audit, backup restore drill and load test before handling live financial records.

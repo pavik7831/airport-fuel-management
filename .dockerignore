@@ -1,0 +1,33 @@
+# Git and editor metadata
+.git
+.gitignore
+.vscode
+.idea
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Local artifacts
+.kilo/
+*.log

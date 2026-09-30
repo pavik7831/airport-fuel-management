@@ -277,6 +277,12 @@ async def test_edit_rejects_inactive_related_records(database):
     with pytest.raises(HTTPException) as provider_error:
         await update_draft_invoice(db, invoice, data, admin.id)
     assert provider_error.value.status_code == 422
+    provider.active = True
+    airline.active = False
+    await db.commit()
+    with pytest.raises(HTTPException) as airline_error:
+        await update_draft_invoice(db, invoice, data, admin.id)
+    assert airline_error.value.status_code == 422
 
 
 @pytest.mark.asyncio

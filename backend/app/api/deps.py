@@ -34,4 +34,3 @@ def get_current_admin(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
-

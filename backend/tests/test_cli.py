@@ -1,7 +1,10 @@
+import runpy
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import uvicorn
 
 from backend.app import cli
 from backend.app.security import verify_password
@@ -51,6 +54,12 @@ async def test_bootstrap_rejects_duplicate_username(monkeypatch):
     monkeypatch.setattr(cli, "SessionLocal", Session)
     with pytest.raises(SystemExit, match="Administrator already exists"):
         await cli.bootstrap("existing", "a-bootstrap-password-long-enough")
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_rejects_short_password():
+    with pytest.raises(SystemExit, match="at least 12"):
+        await cli.bootstrap("short-password", "too-short")
 
 
 @pytest.mark.asyncio
@@ -120,3 +129,25 @@ def test_cli_commands_dispatch_and_prompt_safely(monkeypatch, command, password_
 
     expected_password = password_arg or "prompted-password-value"
     assert calls == [("cli-admin", expected_password)]
+
+
+def test_cli_module_entrypoint_runs_main_for_help(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["afm", "--help"])
+    with pytest.raises(SystemExit) as result:
+        runpy.run_path(str(Path(cli.__file__)), run_name="__main__")
+    assert result.value.code == 0
+
+
+def test_backend_module_entrypoint_starts_uvicorn(monkeypatch):
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    entrypoint = Path(cli.__file__).with_name("__main__.py")
+
+    runpy.run_path(str(entrypoint), run_name="__main__")
+
+    assert calls == [
+        (
+            ("app.main:app",),
+            {"host": "0.0.0.0", "port": 8000, "reload": True},
+        )
+    ]

@@ -11,6 +11,14 @@ class InvoiceGenerate(BaseModel):
     billing_month: date
     fuel_quantity_litres: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
 
+    @property
+    def provider_id(self) -> int:
+        return self.fuel_provider_id
+
+    @property
+    def fuel_quantity(self) -> Decimal:
+        return self.fuel_quantity_litres
+
 
 class InvoiceResponse(BaseModel):
     id: int
@@ -33,3 +41,12 @@ class DashboardSummary(BaseModel):
     fuel_rates: int
     invoices: int
     total_invoiced_amount: Decimal
+
+
+class DashboardResponse(BaseModel):
+    total_providers: int
+    total_airlines: int
+    total_rates: int
+    total_invoices: int
+    total_invoice_amount: Decimal
+    recent_invoices: list[InvoiceResponse]

@@ -7,23 +7,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from .auth import get_current_user
-from .database import get_db
-from .models import Airline, FuelProvider, FuelRate, Invoice
-from .schemas import (
-    AirlineCreate,
-    AirlineResponse,
-    AirlineUpdate,
-    DashboardResponse,
-    FuelRateCreate,
-    FuelRateResponse,
-    FuelRateUpdate,
-    InvoiceCreate,
-    InvoiceResponse,
-    InvoiceUpdate,
-    ProviderCreate,
-    ProviderResponse,
-    ProviderUpdate,
-)
+from .db.session import get_db
+from .models.airline import Airline
+from .models.fuel_provider import FuelProvider
+from .models.fuel_rate import FuelRate
+from .models.invoice import Invoice
+from .schemas.fuel_rate import FuelRateCreate, FuelRateResponse, FuelRateUpdate
+from .schemas.invoice import DashboardResponse, InvoiceResponse
+from .schemas.invoice import InvoiceGenerate as InvoiceCreate
+from .schemas.invoice import InvoiceGenerate as InvoiceUpdate
+from .schemas.party import AirlineCreate, AirlineResponse, AirlineUpdate
+from .schemas.party import FuelProviderCreate as ProviderCreate
+from .schemas.party import FuelProviderResponse as ProviderResponse
+from .schemas.party import FuelProviderUpdate as ProviderUpdate
 
 router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
@@ -133,11 +129,15 @@ def invoices(
     if month:
         query = query.filter(Invoice.billing_month == month)
     if search:
-        query = query.join(FuelProvider).join(Airline).filter(
-            or_(
-                Invoice.reference_number.ilike(f"%{search}%"),
-                FuelProvider.name.ilike(f"%{search}%"),
-                Airline.name.ilike(f"%{search}%"),
+        query = (
+            query.join(FuelProvider)
+            .join(Airline)
+            .filter(
+                or_(
+                    Invoice.reference_number.ilike(f"%{search}%"),
+                    FuelProvider.name.ilike(f"%{search}%"),
+                    Airline.name.ilike(f"%{search}%"),
+                )
             )
         )
     return query.order_by(Invoice.billing_month.desc(), Invoice.created_at.desc()).all()
@@ -177,15 +177,17 @@ def build_invoice(db: Session, payload, existing=None):
         "billing_month": billing_month,
         "fuel_quantity": payload.fuel_quantity,
         "fuel_rate": rate.rate,
-        "total_amount": (
-            payload.fuel_quantity * rate.rate
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+        "currency": rate.currency,
+        "total_amount": (payload.fuel_quantity * rate.rate).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        ),
     }
     if existing:
         values.pop("billing_month")
         values.pop("provider_id")
         values.pop("airline_id")
-        existing.__dict__.update(values)
+        for key, value in values.items():
+            setattr(existing, key, value)
         return existing
     values["reference_number"] = (
         f"AFM-{billing_month:%Y%m}-{provider.code}-{airline.code}-{date.today():%d%H%M%S}"

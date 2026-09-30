@@ -10,7 +10,9 @@ from app.api.routes.parties import router as parties_router
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import User
+from app.models.user import User
+from app.routes_auth import router as legacy_auth_router
+from app.routes_resources import router as resources_router
 
 
 def create_initial_admin() -> None:
@@ -48,6 +50,8 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(fuel_rates_router, prefix="/api/v1")
 app.include_router(parties_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
+app.include_router(legacy_auth_router)
+app.include_router(resources_router)
 
 
 @app.get("/health", tags=["Health"])

@@ -16,3 +16,11 @@ class CurrentUserResponse(BaseModel):
     email: EmailStr
     is_admin: bool
 
+
+class LegacyTokenResponse(BaseModel):
+    access_token: str
+    user_email: EmailStr
+
+
+class UserResponse(BaseModel):
+    email: EmailStr

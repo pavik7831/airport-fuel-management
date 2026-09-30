@@ -15,4 +15,4 @@ ignore = ["E501", "B008"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["backend/tests"]
-addopts = "--cov=backend/app --cov-report=term-missing"
+addopts = "--cov=backend/app --cov-report=term-missing --cov-fail-under=100"

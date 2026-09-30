@@ -2,14 +2,18 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 class Invoice(Base):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("fuel_provider_id", "airline_id", "billing_month", name="uq_invoice_monthly_pair"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "fuel_provider_id", "airline_id", "billing_month", name="uq_invoice_monthly_pair"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     invoice_number: Mapped[str] = mapped_column(String(80), unique=True, index=True)
@@ -23,3 +27,9 @@ class Invoice(Base):
     total_amount: Mapped[Decimal] = mapped_column(Numeric(16, 2))
     status: Mapped[str] = mapped_column(String(20), default="Generated")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reference_number = synonym("invoice_number")
+    provider_id = synonym("fuel_provider_id")
+    fuel_quantity = synonym("fuel_quantity_litres")
+    fuel_rate = synonym("rate_per_litre")
+    provider = relationship("FuelProvider")
+    airline = relationship("Airline")

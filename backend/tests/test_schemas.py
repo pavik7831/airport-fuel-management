@@ -40,3 +40,27 @@ def test_cancellation_reason_cannot_be_only_whitespace():
         CancelIn(reason="   ")
 
     assert CancelIn(reason="  Correction needed  ").reason == "Correction needed"
+
+
+def test_rate_date_order_and_optional_invoice_notes():
+    with pytest.raises(ValidationError, match="effective_to must be on or after effective_from"):
+        RateIn(
+            provider_id=1,
+            fuel_type="JET A-1",
+            rate_per_unit="1.25",
+            currency="USD",
+            effective_from="2026-02-01",
+            effective_to="2026-01-31",
+        )
+
+    invoice = InvoiceIn(
+        reference="INV-OPTIONAL-NOTES",
+        airline_id=1,
+        provider_id=1,
+        billing_month="2026-01-01",
+        invoice_date="2026-01-15",
+        fuel_type="JET A-1",
+        quantity="1",
+        notes=None,
+    )
+    assert invoice.notes is None
