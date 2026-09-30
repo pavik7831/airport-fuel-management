@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.api.routes.auth import router as auth_router
 from app.api.routes.fuel_rates import router as fuel_rates_router
 from app.api.routes.invoices import router as invoices_router

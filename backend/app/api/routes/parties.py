@@ -5,14 +5,23 @@ from app.api.deps import DbSession, get_current_admin
 from app.models.airline import Airline
 from app.models.fuel_provider import FuelProvider
 from app.schemas.party import (
-    AirlineCreate, AirlineResponse, AirlineUpdate,
-    FuelProviderCreate, FuelProviderResponse, FuelProviderUpdate,
+    AirlineCreate,
+    AirlineResponse,
+    AirlineUpdate,
+    FuelProviderCreate,
+    FuelProviderResponse,
+    FuelProviderUpdate,
 )
 
 router = APIRouter(tags=["Master Data"], dependencies=[Depends(get_current_admin)])
 
 
-def save_party(db: DbSession, model: type[FuelProvider] | type[Airline], payload, item_id: int | None = None):
+def save_party(
+    db: DbSession,
+    model: type[FuelProvider] | type[Airline],
+    payload,
+    item_id: int | None = None,
+):
     item = db.get(model, item_id) if item_id is not None else model(**payload.model_dump())
     if item is None:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -22,7 +31,9 @@ def save_party(db: DbSession, model: type[FuelProvider] | type[Airline], payload
     if item_id is not None:
         for field, value in payload.model_dump().items():
             setattr(item, field, value)
-    db.add(item); db.commit(); db.refresh(item)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
     return item
 
 
@@ -31,7 +42,11 @@ def list_fuel_providers(db: DbSession):
     return db.scalars(select(FuelProvider).order_by(FuelProvider.name)).all()
 
 
-@router.post("/fuel-providers", response_model=FuelProviderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/fuel-providers",
+    response_model=FuelProviderResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_fuel_provider(payload: FuelProviderCreate, db: DbSession):
     return save_party(db, FuelProvider, payload)
 
@@ -46,7 +61,11 @@ def list_airlines(db: DbSession):
     return db.scalars(select(Airline).order_by(Airline.name)).all()
 
 
-@router.post("/airlines", response_model=AirlineResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/airlines",
+    response_model=AirlineResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_airline(payload: AirlineCreate, db: DbSession):
     return save_party(db, Airline, payload)
 

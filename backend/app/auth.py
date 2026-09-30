@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-import bcrypt
 from sqlalchemy.orm import Session
 
 from .config import settings
@@ -22,7 +22,7 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(subject: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    expires = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     return jwt.encode({"sub": subject, "exp": expires}, settings.secret_key, algorithm="HS256")
 
 
