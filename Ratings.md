@@ -34,4 +34,4 @@ The overall score is the average of the four category ratings below.
 | Frontend production build | **Passed** |
 | Alembic SQLite upgrade/check/downgrade | **Passed** |
 
-<sub>Ratings summarize the implementation and verification completed for this project...</sub>
+<sub>Ratings summarize the implementation and verification completed for this project.</sub>
