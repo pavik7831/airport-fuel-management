@@ -36,10 +36,10 @@ The overall score is the arithmetic mean of the 12 category ratings below, round
 | **Frontend implementation** | **9 / 10** | React 19 app has routed management pages, responsive styling, API integration, page-level tests, lint and formatting checks, and a production build. The repository also retains an older, unconfigured TypeScript UI. |
 | **User experience and accessibility** | **8.5 / 10** | Responsive operations interface with forms, loading and error states, navigation, and invoice print/detail flows. A formal accessibility audit is still listed as future work. |
 | **Backend and business logic** | **10 / 10** | 64 backend tests pass with 100% statement coverage across 1,325 statements. Financial calculations use `Decimal`; invoice state transitions, snapshots, and validation are implemented in services. Ruff lint and formatting checks pass. |
-| **API design and integration** | **10 / 10** | Authenticated, versioned API with pagination and filtering. The browser journey covers login, master-data creation, rates, concurrent overlap rejection, invoice totals, and logout against a live API. |
+| **API design and integration** | **10 / 10** | Authenticated, versioned API with pagination and filtering. The local browser journey covers login, master-data creation, rates, concurrent overlap rejection, invoice totals, and logout against a live API. The latest hosted browser job stopped before running tests. |
 | **Database and data integrity** | **9 / 10** | PostgreSQL migrations, uniqueness and check constraints, foreign-key restrictions, and a GiST constraint for overlapping active rates. Local PostgreSQL journey passed; hosted CI and a production restore drill remain unverified. |
 | **Security** | **9 / 10** | Argon2id password hashing, short-lived JWT cookies, CSRF checks, login throttling, active-admin checks, CSV formula neutralization, and baseline response headers. Formal threat modeling and external security review remain future work. |
-| **Testing and verification** | **9.5 / 10** | Backend and frontend suites, lint and formatting checks, production build, plus a local PostgreSQL-backed Playwright journey are documented as passing. GitHub Actions has not been verified from this workspace. |
+| **Testing and verification** | **9.5 / 10** | Backend and frontend suites, lint and formatting checks, production build, plus a local PostgreSQL-backed Playwright journey are documented as passing. In hosted run 8, frontend checks passed; backend and browser jobs failed during container initialization, before their checks ran. |
 | **Architecture and maintainability** | **8.5 / 10** | Current backend separates routes, schemas, models, services, and migrations. Legacy backend modules and an older frontend remain alongside the current implementation, increasing maintenance ambiguity. |
 | **Deployment and operations** | **8.5 / 10** | Docker Compose, health checks, migration-on-start, Nginx proxying, and backup/restore instructions are included. Production deployment, TLS setup, and restore procedures are not verified here. |
 | **Documentation** | **9 / 10** | README covers setup, configuration, migrations, tests, Docker, security, and known limitations. Hosted CI and production readiness caveats are stated. |
@@ -58,6 +58,6 @@ The category ratings total **109.5**; `109.5 ÷ 12 = 9.125`, rounded to **9.1 / 
 | Frontend lint and formatting | **Passed** |
 | Frontend production build | **Passed** |
 | PostgreSQL migrations and Playwright browser journey | **Passed locally against a disposable database** |
-| Hosted GitHub Actions run | **Not yet verified** |
+| Hosted GitHub Actions run | **Run 8 failed**: frontend checks passed; backend and PostgreSQL browser jobs failed at `Initialize containers` before their checks ran. [View run](https://github.com/pavik7831/airport-fuel-management/actions/runs/36732636704). |
 
 <sub>Ratings summarize local implementation and verification evidence; they do not guarantee an external evaluator or hiring decision.</sub>
