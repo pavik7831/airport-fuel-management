@@ -32,6 +32,7 @@ export function Invoices() {
     }),
     [q, airline, provider, month, status],
   );
+  const hasFilters = Boolean(q || airline || provider || month || status);
   useEffect(() => {
     Promise.all([
       api.get("/airlines", { params: { page_size: 100 } }),
@@ -87,6 +88,14 @@ export function Invoices() {
     fn(e.target.value);
     setPage(1);
   };
+  function clearFilters() {
+    setQ("");
+    setStatus("");
+    setAirline("");
+    setProvider("");
+    setMonth("");
+    setPage(1);
+  }
   return (
     <>
       <PageHeading
@@ -168,12 +177,26 @@ export function Invoices() {
             <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
+        {hasFilters && (
+          <button
+            type="button"
+            className="btn btn-sm btn-link px-0 mb-3"
+            onClick={clearFilters}
+          >
+            <i className="bi bi-x-circle me-1" />
+            Clear filters
+          </button>
+        )}
         {data?.items.length ? (
           <InvoiceTable rows={data.items} />
         ) : data ? (
           <Empty
             title="No invoices found"
-            detail="Create an invoice to start monthly billing."
+            detail={
+              hasFilters
+                ? "Try adjusting or clearing the filters to see more invoices."
+                : "Create an invoice to start monthly billing."
+            }
           />
         ) : (
           <Loading />
