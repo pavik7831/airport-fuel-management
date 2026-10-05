@@ -9,8 +9,12 @@ on:
 
 jobs:
   backend:
-    name: Backend checks
+    name: Backend checks (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     services:
       postgres:
         image: postgres:16
@@ -35,10 +39,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install backend dependencies
         run: |
@@ -61,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage
+          name: backend-coverage-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
 
@@ -84,6 +88,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=moderate
 
       - name: ESLint
         run: npm run lint
