@@ -99,7 +99,7 @@ npm test
 npm run build
 ```
 
-Pull requests and pushes to `main`/`master` are configured to run backend checks on Python 3.12 and 3.13, frontend checks including a moderate-or-higher npm advisory audit, and a PostgreSQL-backed Playwright journey. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the local workflow and pull request checklist. Report security issues privately as described in [SECURITY.md](./SECURITY.md).
+Pull requests and pushes to `main`/`master` are configured to run backend checks on Python 3.12 and 3.13, frontend checks including a moderate-or-higher npm advisory audit, CodeQL analysis for Python and JavaScript/TypeScript, and a PostgreSQL-backed Playwright journey. Dependabot checks Python, npm, and GitHub Actions dependencies weekly. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the local workflow and pull request checklist. Report security issues privately as described in [SECURITY.md](./SECURITY.md).
 
 Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent overlapping rate writes, invoice creation and total verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
 
