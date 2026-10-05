@@ -27,7 +27,7 @@ jobs:
         options: >-
           --health-cmd="pg_isready -U afm -d afm"
           --health-interval=10s
-          --timeout=5s
+          --health-timeout=5s
           --retries=5
     env:
       DATABASE_URL: postgresql+asyncpg://afm:afm@localhost:5432/afm
@@ -119,7 +119,7 @@ jobs:
         options: >-
           --health-cmd="pg_isready -U afm -d afm"
           --health-interval=10s
-          --timeout=5s
+          --health-timeout=5s
           --retries=5
     env:
       DATABASE_URL: postgresql+asyncpg://afm:afm@localhost:5432/afm
