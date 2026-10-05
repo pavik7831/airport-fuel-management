@@ -7,7 +7,14 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.models import Airline, FuelRate, Invoice, InvoiceAudit, Provider
+from backend.app.models import (
+    Airline,
+    FuelRate,
+    Invoice,
+    InvoiceAudit,
+    InvoicePayment,
+    Provider,
+)
 
 CENT = Decimal("0.01")
 
@@ -192,6 +199,54 @@ async def change_invoice_status(
     db.add(InvoiceAudit(invoice_id=invoice.id, admin_id=admin_id, event=status, details=reason))
     await db.commit()
     await db.refresh(invoice)
+    return invoice
+
+
+async def record_invoice_payment(
+    db: AsyncSession, invoice: Invoice, data, admin_id: int
+) -> Invoice:
+    if invoice.status != "FINALIZED":
+        raise HTTPException(409, "Payments can only be recorded for finalized invoices")
+
+    paid_amount = await db.scalar(
+        select(func.coalesce(func.sum(InvoicePayment.amount), 0)).where(
+            InvoicePayment.invoice_id == invoice.id
+        )
+    )
+    outstanding = money(invoice.total_amount - Decimal(paid_amount or 0))
+    if data.amount > outstanding:
+        raise HTTPException(409, "Payment exceeds the remaining balance")
+
+    payment = InvoicePayment(
+        invoice_id=invoice.id,
+        admin_id=admin_id,
+        amount=data.amount,
+        payment_date=data.payment_date,
+        reference=data.reference,
+        notes=data.notes,
+    )
+    db.add(payment)
+    db.add(
+        InvoiceAudit(
+            invoice_id=invoice.id,
+            admin_id=admin_id,
+            event="PAYMENT_RECORDED",
+            details=json.dumps(
+                {
+                    "amount": str(data.amount),
+                    "payment_date": data.payment_date.isoformat(),
+                    "reference": data.reference,
+                },
+                sort_keys=True,
+            ),
+        )
+    )
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
+    await db.refresh(invoice, attribute_names=["payments"])
     return invoice
 
 

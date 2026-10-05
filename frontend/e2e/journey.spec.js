@@ -106,10 +106,52 @@ test("login, configure fuel network, invoice billing, verify amount, and logout"
   await expect(
     page.getByRole("heading", { name: `E2E-${suffix}` }),
   ).toBeVisible();
-  await expect(page.locator(".invoice-total .grand-total b")).toHaveText(
-    "$250.00",
-  );
+  await expect(
+    page.locator(".invoice-total .grand-total b").first(),
+  ).toHaveText("$250.00");
   await expect(page.getByText("E2E Airline", { exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Finalize invoice" }).click();
+  const paymentAmount = page.getByLabel(/Payment amount/);
+  await expect(paymentAmount).toBeVisible();
+  const invoiceId = Number(new URL(page.url()).pathname.split("/").at(-1));
+  const paymentRaceStatuses = await page.evaluate(
+    async ({ invoiceId, today }) => {
+      const csrf = decodeURIComponent(
+        document.cookie
+          .split("; ")
+          .find((item) => item.startsWith("afm_csrf="))
+          .split("=")
+          .slice(1)
+          .join("="),
+      );
+      const send = () =>
+        fetch(`/api/v1/invoices/${invoiceId}/payments`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrf,
+          },
+          body: JSON.stringify({ amount: "150.00", payment_date: today }),
+        }).then((response) => response.status);
+      return Promise.all([send(), send()]);
+    },
+    { invoiceId, today },
+  );
+  expect([...paymentRaceStatuses].sort()).toEqual([201, 409]);
+  await page.reload();
+  await expect(paymentAmount).toBeVisible();
+  await paymentAmount.fill("50");
+  await page.getByLabel("Payment reference").fill(`WIRE-${suffix}`);
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(
+    page.getByRole("heading", { name: /Payments · PARTIALLY PAID/ }),
+  ).toBeVisible();
+  await expect(page.locator(".invoice-total .grand-total b").nth(1)).toHaveText(
+    "$50.00",
+  );
+  await expect(page.getByText(`WIRE-${suffix}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();

@@ -118,6 +118,12 @@ export function InvoiceTable({ rows, compact = false }) {
                 <span className={`state state-${r.status.toLowerCase()}`}>
                   {pretty(r.status)}
                 </span>
+                {r.payment_status && (
+                  <small className="cell-sub">
+                    {pretty(r.payment_status)} · Outstanding{" "}
+                    {currency(r.balance_due, r.currency)}
+                  </small>
+                )}
               </td>
               {!compact && (
                 <td className="text-end">

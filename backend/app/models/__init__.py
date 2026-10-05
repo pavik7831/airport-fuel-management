@@ -1,4 +1,14 @@
-from .current import Admin, Airline, Base, EntityMixin, FuelRate, Invoice, InvoiceAudit, Provider
+from .current import (
+    Admin,
+    Airline,
+    Base,
+    EntityMixin,
+    FuelRate,
+    Invoice,
+    InvoiceAudit,
+    InvoicePayment,
+    Provider,
+)
 
 __all__ = [
     "Admin",
@@ -8,5 +18,6 @@ __all__ = [
     "FuelRate",
     "Invoice",
     "InvoiceAudit",
+    "InvoicePayment",
     "Provider",
 ]

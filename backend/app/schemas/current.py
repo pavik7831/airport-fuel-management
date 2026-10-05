@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
 
 class LoginIn(BaseModel):
@@ -116,6 +116,28 @@ class InvoiceIn(BaseModel):
         return value
 
 
+class InvoicePaymentIn(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    payment_date: date = Field(default_factory=date.today)
+    reference: str | None = Field(None, max_length=100)
+    notes: str | None = Field(None, max_length=1000)
+
+    @field_validator("reference", "notes", mode="before")
+    @classmethod
+    def trim_optional_text(cls, value):
+        return value.strip() or None if isinstance(value, str) else value
+
+
+class InvoicePaymentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    amount: Decimal
+    payment_date: date
+    reference: str | None
+    notes: str | None
+    created_at: datetime
+
+
 class InvoiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -140,6 +162,30 @@ class InvoiceOut(BaseModel):
     cancel_reason: str | None
     created_at: datetime
     updated_at: datetime
+    payments: list[InvoicePaymentOut]
+
+    @computed_field
+    @property
+    def paid_amount(self) -> Decimal:
+        return sum((payment.amount for payment in self.payments), Decimal("0.00"))
+
+    @computed_field
+    @property
+    def balance_due(self) -> Decimal:
+        return self.total_amount - self.paid_amount
+
+    @computed_field
+    @property
+    def payment_status(self) -> str:
+        if self.status == "CANCELLED":
+            return "CANCELLED"
+        if self.status == "DRAFT":
+            return "NOT_DUE"
+        if self.balance_due == 0:
+            return "PAID"
+        if self.paid_amount > 0:
+            return "PARTIALLY_PAID"
+        return "UNPAID"
 
 
 class CancelIn(BaseModel):

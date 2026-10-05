@@ -7,7 +7,14 @@ import { currency, pretty } from "../utils";
 export function InvoiceDetail() {
   const { id } = useParams(),
     [row, setRow] = useState(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [paymentAmount, setPaymentAmount] = useState(""),
+    [paymentDate, setPaymentDate] = useState(
+      new Date().toISOString().slice(0, 10),
+    ),
+    [paymentReference, setPaymentReference] = useState(""),
+    [paymentNotes, setPaymentNotes] = useState(""),
+    [savingPayment, setSavingPayment] = useState(false);
   const load = useCallback(
     () =>
       api
@@ -31,7 +38,28 @@ export function InvoiceDetail() {
       setError(errorMessage(e));
     }
   }
-  if (error)
+  async function recordPayment(event) {
+    event.preventDefault();
+    setSavingPayment(true);
+    setError("");
+    try {
+      const { data } = await api.post(`/invoices/${id}/payments`, {
+        amount: paymentAmount,
+        payment_date: paymentDate,
+        reference: paymentReference || null,
+        notes: paymentNotes || null,
+      });
+      setRow(data);
+      setPaymentAmount("");
+      setPaymentReference("");
+      setPaymentNotes("");
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSavingPayment(false);
+    }
+  }
+  if (error && !row)
     return (
       <>
         <PageHeading eyebrow="INVOICE DETAILS" title="Invoice" />
@@ -158,7 +186,113 @@ export function InvoiceDetail() {
             <span>Total due</span>
             <b>{currency(row.total_amount, row.currency)}</b>
           </div>
+          <div>
+            <span>Payments received</span>
+            <b>{currency(row.paid_amount, row.currency)}</b>
+          </div>
+          <div className="grand-total">
+            <span>Outstanding balance</span>
+            <b>{currency(row.balance_due, row.currency)}</b>
+          </div>
         </div>
+        <section
+          className="payment-history no-print"
+          aria-labelledby="payments-heading"
+        >
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <span className="eyebrow">COLLECTIONS</span>
+              <h3 id="payments-heading" className="h5 mb-0">
+                Payments · {pretty(row.payment_status)}
+              </h3>
+            </div>
+          </div>
+          {row.payments.length ? (
+            <div className="table-responsive">
+              <table className="table align-middle">
+                <thead>
+                  <tr>
+                    <th>DATE</th>
+                    <th>REFERENCE</th>
+                    <th>NOTES</th>
+                    <th className="text-end">AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {row.payments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{payment.payment_date}</td>
+                      <td>{payment.reference || "—"}</td>
+                      <td>{payment.notes || "—"}</td>
+                      <td className="text-end">
+                        {currency(payment.amount, row.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-muted mb-0">No payments recorded yet.</p>
+          )}
+          {row.status === "FINALIZED" && Number(row.balance_due) > 0 && (
+            <form onSubmit={recordPayment} className="form-grid mt-4">
+              <label>
+                Payment amount ({row.currency}) *
+                <input
+                  className="form-control"
+                  type="number"
+                  min="0.01"
+                  max={row.balance_due}
+                  step="0.01"
+                  required
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                />
+              </label>
+              <label>
+                Payment date *
+                <input
+                  className="form-control"
+                  type="date"
+                  required
+                  value={paymentDate}
+                  onChange={(event) => setPaymentDate(event.target.value)}
+                />
+              </label>
+              <label>
+                Payment reference
+                <input
+                  className="form-control"
+                  maxLength="100"
+                  value={paymentReference}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                />
+              </label>
+              <label>
+                Notes
+                <input
+                  className="form-control"
+                  maxLength="1000"
+                  value={paymentNotes}
+                  onChange={(event) => setPaymentNotes(event.target.value)}
+                />
+              </label>
+              <div className="wide">
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    savingPayment ||
+                    !paymentAmount ||
+                    Number(paymentAmount) > Number(row.balance_due)
+                  }
+                >
+                  {savingPayment ? "Recording payment…" : "Record payment"}
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
         {row.notes && (
           <div className="invoice-notes">
             <span>NOTES</span>

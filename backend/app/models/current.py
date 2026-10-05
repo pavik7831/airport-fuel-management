@@ -133,6 +133,30 @@ class Invoice(Base):
     audit_events: Mapped[list["InvoiceAudit"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan"
     )
+    payments: Mapped[list["InvoicePayment"]] = relationship(
+        back_populates="invoice",
+        cascade="save-update, merge",
+        lazy="selectin",
+        order_by="InvoicePayment.payment_date, InvoicePayment.id",
+    )
+
+
+class InvoicePayment(Base):
+    __tablename__ = "invoice_payments"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_invoice_payment_amount_positive"),
+        Index("ix_invoice_payment_invoice_date", "invoice_id", "payment_date", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id", ondelete="RESTRICT"))
+    admin_id: Mapped[int] = mapped_column(ForeignKey("administrators.id", ondelete="RESTRICT"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    payment_date: Mapped[date] = mapped_column(Date)
+    reference: Mapped[str | None] = mapped_column(String(100))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    invoice: Mapped[Invoice] = relationship(back_populates="payments")
 
 
 class InvoiceAudit(Base):

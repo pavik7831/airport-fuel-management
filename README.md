@@ -10,6 +10,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 - Financial invoice lifecycle: DRAFT → FINALIZED or CANCELLED. Terminal invoices cannot be changed. Cancellation requires a reason and creates an audit event. Invoices snapshot the selected rate and names/codes. Totals use Decimal and ROUND_HALF_UP at two decimal places.
 - Invoice references are globally unique. This allows multiple invoices per airline/provider/month while preventing duplicate references. PostgreSQL uniqueness is the concurrency authority.
 - Active provider/rate/airline checks, soft deactivation and FK restrictions preserve financial history. Active rate periods are protected both by API validation and a PostgreSQL GiST exclusion constraint, including concurrent writes. Dashboard excludes cancelled amounts and groups by currency to avoid combining unlike currencies.
+- Finalized invoices accept immutable, dated partial-payment entries with optional references and notes. The API computes paid totals and balances from the ledger, rejects overpayments, and records payment events in the invoice audit history.
 - Invoice CSV exports neutralize spreadsheet formula prefixes; dashboard monthly/provider/airline summaries use the selected 3–36 month billing window.
 
 ## Technology and supported versions
@@ -66,7 +67,7 @@ Access tokens expire after `ACCESS_TOKEN_MINUTES` (default 30). Authentication i
 
 ## Database and migrations
 
-Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Before upgrading an existing database, resolve any conflicts returned by:
+Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Revision `0003_invoice_payments` adds the immutable invoice payment ledger. Before upgrading an existing database to `0002_rate_period_exclusion`, resolve any conflicts returned by:
 
 ```sql
 SELECT a.id, b.id, a.provider_id, a.fuel_type
@@ -101,9 +102,9 @@ npm run build
 
 Pull requests and pushes to `main`/`master` are configured to run backend checks on Python 3.12 and 3.13, frontend checks including a moderate-or-higher npm advisory audit, CodeQL analysis for Python and JavaScript/TypeScript, and a PostgreSQL-backed Playwright journey. Dependabot checks Python, npm, and GitHub Actions dependencies weekly. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the local workflow and pull request checklist. Report security issues privately as described in [SECURITY.md](./SECURITY.md).
 
-Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent overlapping rate writes, invoice creation and total verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
+Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent rate-overlap and payment-overpayment checks, invoice creation, finalization, partial payment recording and balance verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
 
-The latest local backend verification passed 64 tests with 100% statement coverage across 1,325 statements, along with Ruff lint and formatting checks. The frontend has 12 passing tests, lint and formatting checks, and a production build. The Playwright browser journey passed locally against PostgreSQL 16 after applying both migrations to a disposable database; it also verifies concurrent rate-overlap protection. The scratch database was removed after the run. API and service unit tests use isolated SQLite databases. GitHub Actions itself has not yet been run from this workspace.
+The latest local backend verification passed 67 tests with 100% statement coverage across 1,403 statements, along with Ruff lint and formatting checks. The frontend has 17 passing tests, lint and formatting checks, and a production build. The Playwright browser journey previously passed locally against PostgreSQL 16 and verifies concurrent rate-overlap protection; the new concurrent-payment browser step awaits a run against PostgreSQL. API and service unit tests use isolated SQLite databases. Re-run CI after changes are pushed; local checks do not replace the PostgreSQL-backed workflow.
 
 The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 328 kB CSS (49 kB gzip), plus Bootstrap icon fonts. Management pages load as separate route chunks; consider trimming unused Bootstrap CSS if the interface grows substantially.
 
@@ -127,5 +128,5 @@ GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format
 
 - Maintain the 100% backend coverage gate as routes and services change.
 - Confirm the hosted Playwright run passes against PostgreSQL and retain its result before production use.
-- Add payment tracking before presenting outstanding receivables; dashboard intentionally omits it.
+- Add receivables aging and payment reconciliation before using the payment ledger for collections operations.
 - Perform a formal threat model, external dependency scan, accessibility audit, backup restore drill and load test before handling live financial records.

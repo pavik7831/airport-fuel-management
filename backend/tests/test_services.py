@@ -8,14 +8,23 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from backend.app.models import Admin, Airline, Base, FuelRate, InvoiceAudit, Provider
-from backend.app.schemas import InvoiceIn
+from backend.app.models import (
+    Admin,
+    Airline,
+    Base,
+    FuelRate,
+    InvoiceAudit,
+    InvoicePayment,
+    Provider,
+)
+from backend.app.schemas import InvoiceIn, InvoicePaymentIn
 from backend.app.services import (
     applicable_rate,
     change_invoice_status,
     create_invoice,
     money,
     page_meta,
+    record_invoice_payment,
     update_draft_invoice,
 )
 
@@ -145,6 +154,104 @@ async def test_invoice_reference_unique_and_terminal_lifecycle(database):
     with pytest.raises(HTTPException) as terminal:
         await change_invoice_status(db, final, admin.id, "CANCELLED", "mistake")
     assert terminal.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_partial_payments_are_audited_and_cannot_exceed_finalized_balance(database):
+    db, admin, provider, airline = database
+    data = InvoiceIn(
+        reference="PAY-1",
+        airline_id=airline.id,
+        provider_id=provider.id,
+        billing_month=date(2026, 2, 1),
+        invoice_date=date(2026, 2, 1),
+        fuel_type="JET A-1",
+        quantity=Decimal("10"),
+        tax_amount=Decimal("0.50"),
+    )
+    invoice = await create_invoice(db, data, admin.id)
+    with pytest.raises(HTTPException) as draft:
+        await record_invoice_payment(
+            db, invoice, InvoicePaymentIn(amount=Decimal("1.00")), admin.id
+        )
+    assert draft.value.status_code == 409
+
+    invoice = await change_invoice_status(db, invoice, admin.id, "FINALIZED")
+    invoice = await record_invoice_payment(
+        db,
+        invoice,
+        InvoicePaymentIn(
+            amount=Decimal("5.00"),
+            payment_date=date(2026, 2, 10),
+            reference="WIRE-1",
+            notes="First installment",
+        ),
+        admin.id,
+    )
+    assert invoice.payments[0].amount == Decimal("5.00")
+    with pytest.raises(HTTPException) as excess:
+        await record_invoice_payment(
+            db,
+            invoice,
+            InvoicePaymentIn(amount=Decimal("7.86"), payment_date=date(2026, 2, 20)),
+            admin.id,
+        )
+    assert excess.value.status_code == 409
+
+    invoice = await record_invoice_payment(
+        db,
+        invoice,
+        InvoicePaymentIn(amount=Decimal("7.85"), payment_date=date(2026, 2, 20)),
+        admin.id,
+    )
+    assert sum((payment.amount for payment in invoice.payments), Decimal("0")) == Decimal("12.85")
+    events = (
+        await db.scalars(
+            select(InvoiceAudit)
+            .where(InvoiceAudit.invoice_id == invoice.id)
+            .order_by(InvoiceAudit.id)
+        )
+    ).all()
+    assert [event.event for event in events] == [
+        "CREATED",
+        "FINALIZED",
+        "PAYMENT_RECORDED",
+        "PAYMENT_RECORDED",
+    ]
+    payments = (
+        await db.scalars(select(InvoicePayment).where(InvoicePayment.invoice_id == invoice.id))
+    ).all()
+    assert len(payments) == 2
+
+
+@pytest.mark.asyncio
+async def test_payment_commit_integrity_error_rolls_back():
+    from backend.app.services import record_invoice_payment
+
+    class FailingDB:
+        rolled_back = False
+
+        async def scalar(self, _statement):
+            return Decimal("0.00")
+
+        def add(self, _row):
+            pass
+
+        async def commit(self):
+            raise IntegrityError("insert", {}, RuntimeError("constraint violation"))
+
+        async def rollback(self):
+            self.rolled_back = True
+
+    db = FailingDB()
+    invoice = type(
+        "InvoiceStub", (), {"id": 1, "status": "FINALIZED", "total_amount": Decimal("10")}
+    )()
+    with pytest.raises(IntegrityError):
+        await record_invoice_payment(
+            db, invoice, InvoicePaymentIn(amount=Decimal("1.00")), admin_id=1
+        )
+    assert db.rolled_back
 
 
 @pytest.mark.asyncio

@@ -195,6 +195,61 @@ async def test_authenticated_full_invoice_api_journey(client):
 
     finalized = await client.post(f"/api/v1/invoices/{invoice_id}/finalize", headers=headers)
     assert finalized.json()["status"] == "FINALIZED"
+    assert finalized.json()["payment_status"] == "UNPAID"
+    assert finalized.json()["balance_due"] == "250.00"
+    payment_data = {
+        "amount": "100.00",
+        "payment_date": date_today,
+        "reference": "BANK-TRANSFER-1",
+        "notes": "First installment",
+    }
+    assert (
+        await client.post(f"/api/v1/invoices/{invoice_id}/payments", json=payment_data)
+    ).status_code == 403
+    assert (
+        await client.post(
+            "/api/v1/invoices/9999/payments",
+            json=payment_data,
+            headers=headers,
+        )
+    ).status_code == 404
+    partial_payment = await client.post(
+        f"/api/v1/invoices/{invoice_id}/payments", json=payment_data, headers=headers
+    )
+    assert partial_payment.status_code == 201
+    assert partial_payment.json()["paid_amount"] == "100.00"
+    assert partial_payment.json()["balance_due"] == "150.00"
+    assert partial_payment.json()["payment_status"] == "PARTIALLY_PAID"
+    assert partial_payment.json()["payments"][0]["reference"] == "BANK-TRANSFER-1"
+    payment_list = await client.get("/api/v1/invoices?q=INV-API-001")
+    assert payment_list.json()["items"][0]["paid_amount"] == "100.00"
+    assert payment_list.json()["items"][0]["balance_due"] == "150.00"
+    payment_export = await client.get("/api/v1/invoices/export.csv", params={"q": "INV-API-001"})
+    assert "100.00,150.00,PARTIALLY_PAID" in payment_export.text
+    excessive_payment = await client.post(
+        f"/api/v1/invoices/{invoice_id}/payments",
+        json={"amount": "150.01", "payment_date": date_today},
+        headers=headers,
+    )
+    assert excessive_payment.status_code == 409
+    completed_payment = await client.post(
+        f"/api/v1/invoices/{invoice_id}/payments",
+        json={"amount": "150.00", "payment_date": date_today},
+        headers=headers,
+    )
+    assert completed_payment.status_code == 201
+    assert completed_payment.json()["balance_due"] == "0.00"
+    assert completed_payment.json()["payment_status"] == "PAID"
+    async with client.session_factory() as session:
+        admin = await session.scalar(select(Admin).where(Admin.username == "operator"))
+        with pytest.raises(HTTPException) as paid_invoice:
+            await main.post_invoice_payment(
+                invoice_id=invoice_id,
+                data=main.InvoicePaymentIn(amount=Decimal("0.01")),
+                db=session,
+                admin=admin,
+            )
+    assert paid_invoice.value.status_code == 409
     edit = await client.put(f"/api/v1/invoices/{invoice_id}", json=invoice_data, headers=headers)
     assert edit.status_code == 409
     assert (await client.post("/api/v1/auth/logout", headers=headers)).status_code == 200
@@ -403,6 +458,20 @@ async def test_health_headers_and_readiness_failure(client):
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Database unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_payment_endpoint_rejects_missing_invoice(client):
+    async with client.session_factory() as session:
+        admin = await session.scalar(select(Admin).where(Admin.username == "operator"))
+        with pytest.raises(HTTPException) as missing:
+            await main.post_invoice_payment(
+                invoice_id=9999,
+                data=main.InvoicePaymentIn(amount=Decimal("1.00")),
+                db=session,
+                admin=admin,
+            )
+    assert missing.value.status_code == 404
 
 
 @pytest.mark.asyncio

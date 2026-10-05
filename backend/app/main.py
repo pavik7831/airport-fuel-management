@@ -14,6 +14,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.app.config import settings
 from backend.app.db import engine, get_db
@@ -24,6 +25,7 @@ from backend.app.schemas import (
     EntityOut,
     InvoiceIn,
     InvoiceOut,
+    InvoicePaymentIn,
     LoginIn,
     Profile,
     RateIn,
@@ -39,6 +41,7 @@ from backend.app.services import (
     change_invoice_status,
     create_invoice,
     page_meta,
+    record_invoice_payment,
     update_draft_invoice,
 )
 
@@ -459,7 +462,8 @@ async def list_invoices(
     total = await db.scalar(count)
     rows = (
         await db.scalars(
-            stmt.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+            stmt.options(selectinload(Invoice.payments))
+            .order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -521,6 +525,9 @@ async def export_invoices(
             "subtotal",
             "tax",
             "total",
+            "paid_amount",
+            "balance_due",
+            "payment_status",
             "status",
         ]
     )
@@ -539,6 +546,9 @@ async def export_invoices(
                 x.subtotal,
                 x.tax_amount,
                 x.total_amount,
+                sum((payment.amount for payment in x.payments), start=0),
+                x.total_amount - sum((payment.amount for payment in x.payments), start=0),
+                InvoiceOut.model_validate(x).payment_status,
                 x.status,
             ]
         )
@@ -558,6 +568,24 @@ async def get_invoice(
     if not row:
         raise HTTPException(404, "Invoice not found")
     return row
+
+
+@app.post("/api/v1/invoices/{invoice_id}/payments", response_model=InvoiceOut, status_code=201)
+async def post_invoice_payment(
+    invoice_id: int,
+    data: InvoicePaymentIn,
+    db: AsyncSession = Depends(get_db),
+    admin: Admin = Depends(current_admin),
+):
+    row = await db.scalar(
+        select(Invoice)
+        .where(Invoice.id == invoice_id)
+        .options(selectinload(Invoice.payments))
+        .with_for_update()
+    )
+    if not row:
+        raise HTTPException(404, "Invoice not found")
+    return await record_invoice_payment(db, row, data, admin.id)
 
 
 @app.post("/api/v1/invoices/{invoice_id}/finalize", response_model=InvoiceOut)
