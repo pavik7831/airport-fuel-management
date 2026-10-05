@@ -109,7 +109,7 @@ The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 32
 
 ## Docker and deployment
 
-Set `.env` including a strong `POSTGRES_PASSWORD`, DB URL (compose overrides host to `db`), JWT/CSRF secrets, and origins. `docker compose up --build -d` starts PostgreSQL with persistent volume, migrates before API start, and serves the UI on `127.0.0.1:8080`; PostgreSQL is not published. Nginx proxies `/api` and `/health` internally. Put a TLS reverse proxy/load balancer in front, restrict inbound access, set the exact public `FRONTEND_ORIGINS`, `COOKIE_SECURE=true`, and keep the database volume private. Do not bake secrets into images.
+Set `.env` including a strong `POSTGRES_PASSWORD`, DB URL (compose overrides host to `db`), JWT/CSRF secrets, and origins. `docker compose up --build -d` starts PostgreSQL with a persistent volume, applies migrations before API start, and serves the UI on `127.0.0.1:8080`; PostgreSQL is not published. Compose waits for PostgreSQL and the API readiness check before starting the frontend. Nginx proxies `/api` and `/health` internally. Put a TLS reverse proxy/load balancer in front, restrict inbound access, set the exact public `FRONTEND_ORIGINS`, `COOKIE_SECURE=true`, and keep the database volume private. Do not bake secrets into images.
 
 For database backup: `docker compose exec -T db pg_dump -U afm afm > afm-backup.sql`. Restore to an empty or separately provisioned DB with `docker compose exec -T db psql -U afm afm < afm-backup.sql`; validate backups and recovery regularly. Use managed secret storage and PostgreSQL point-in-time recovery for production. This repository is not deployed and makes no HTTPS claim.
 
@@ -121,7 +121,7 @@ Liveness is `/health/live`; readiness verifies database connectivity at `/health
 
 ## CI
 
-GitHub Actions runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
+GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
 
 ## Limitations to address before a regulated production launch
 
