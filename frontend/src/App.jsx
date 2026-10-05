@@ -166,6 +166,9 @@ function Shell({ user, setUser }) {
     nav.find((x) => x[1] === loc.pathname)?.[0] || "Invoice details";
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="sidebar-brand">
           <div className="brand-mark small">
@@ -184,21 +187,28 @@ function Shell({ user, setUser }) {
           </button>
         </div>
         <div className="side-label">WORKSPACE</div>
-        <nav>
-          {nav.map(([name, path, icon]) => (
-            <Link
-              key={path}
-              onClick={() => setOpen(false)}
-              className={`nav-entry ${loc.pathname === path ? "active" : ""}`}
-              to={path}
-            >
-              <i className={`bi ${icon}`} />
-              <span>{name}</span>
-              {path === "/invoices" && (
-                <i className="bi bi-chevron-right ms-auto tiny" />
-              )}
-            </Link>
-          ))}
+        <nav aria-label="Primary navigation" id="primary-navigation">
+          {nav.map(([name, path, icon]) => {
+            const current =
+              path === "/"
+                ? loc.pathname === path
+                : loc.pathname === path || loc.pathname.startsWith(`${path}/`);
+            return (
+              <Link
+                key={path}
+                onClick={() => setOpen(false)}
+                className={`nav-entry ${current ? "active" : ""}`}
+                to={path}
+                aria-current={current ? "page" : undefined}
+              >
+                <i className={`bi ${icon}`} />
+                <span>{name}</span>
+                {path === "/invoices" && (
+                  <i className="bi bi-chevron-right ms-auto tiny" />
+                )}
+              </Link>
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
           <div className="status-pill">
@@ -214,7 +224,9 @@ function Shell({ user, setUser }) {
           <button
             className="btn menu-toggle d-lg-none"
             onClick={() => setOpen(!open)}
-            aria-label="Open menu"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            aria-controls="primary-navigation"
           >
             <i className="bi bi-list" />
           </button>
@@ -245,7 +257,7 @@ function Shell({ user, setUser }) {
             </div>
           </div>
         </header>
-        <main className="page-content">
+        <main className="page-content" id="main-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route

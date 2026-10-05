@@ -21,6 +21,31 @@ body {
   color: var(--ink);
   font-size: 14px;
 }
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 14px;
+  transform: translateY(-150%);
+  border-radius: 6px;
+  background: #fff;
+  color: #0a2944;
+  box-shadow: 0 2px 12px #09263f33;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+:focus-visible {
+  outline: 3px solid #087e9b;
+  outline-offset: 3px;
+}
+.sidebar :focus-visible {
+  outline-color: #8ee5df;
+}
+#main-content:focus {
+  outline: none;
+}
 button,
 input,
 select,
@@ -1212,5 +1237,15 @@ h2 {
   }
   .rate-filters {
     grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

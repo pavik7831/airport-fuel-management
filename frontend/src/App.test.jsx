@@ -11,6 +11,54 @@ afterEach(() => {
 });
 
 describe("AFM authentication shell", () => {
+  it("provides keyboard navigation and an accessible mobile menu", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "get").mockImplementation((path) => {
+      if (path === "/auth/me")
+        return Promise.resolve({ data: { id: 1, username: "operator" } });
+      if (path === "/dashboard")
+        return Promise.resolve({
+          data: {
+            active_providers: 0,
+            active_airlines: 0,
+            active_rates: 0,
+            total_invoices: 0,
+            current_month_count: 0,
+            current_month_amounts: [],
+            monthly_totals: [],
+            recent_invoices: [],
+            provider_totals: [],
+            airline_totals: [],
+          },
+        });
+      return Promise.reject(new Error(`unexpected request: ${path}`));
+    });
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /operations dashboard/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /skip to main content/i }),
+    ).toHaveAttribute("href", "#main-content");
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+    expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    const menuButton = screen.getByRole("button", { name: /open menu/i });
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await user.click(menuButton);
+    expect(
+      screen.getByRole("button", { name: "Close menu", expanded: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("shows the sign-in screen when no administrator session exists", async () => {
     vi.spyOn(api, "get").mockRejectedValue(new Error("unauthorized"));
     render(
