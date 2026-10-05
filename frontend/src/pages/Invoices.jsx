@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import {
@@ -20,7 +20,18 @@ export function Invoices() {
     [month, setMonth] = useState(""),
     [airlines, setAirlines] = useState([]),
     [providers, setProviders] = useState([]),
-    [page, setPage] = useState(1);
+    [page, setPage] = useState(1),
+    [exporting, setExporting] = useState(false);
+  const filterParams = useMemo(
+    () => ({
+      q,
+      airline_id: airline || undefined,
+      provider_id: provider || undefined,
+      billing_month: month ? `${month}-01` : undefined,
+      status: status || undefined,
+    }),
+    [q, airline, provider, month, status],
+  );
   useEffect(() => {
     Promise.all([
       api.get("/airlines", { params: { page_size: 100 } }),
@@ -37,11 +48,7 @@ export function Invoices() {
       api
         .get("/invoices", {
           params: {
-            q,
-            airline_id: airline || undefined,
-            provider_id: provider || undefined,
-            billing_month: month ? `${month}-01` : undefined,
-            status: status || undefined,
+            ...filterParams,
             page,
             page_size: 10,
           },
@@ -51,14 +58,19 @@ export function Invoices() {
           setError("");
         })
         .catch((e) => setError(errorMessage(e))),
-    [q, status, airline, provider, month, page],
+    [filterParams, page],
   );
   useEffect(() => {
     load();
   }, [load]);
   async function exportCsv() {
+    setExporting(true);
+    setError("");
     try {
-      const r = await api.get("/invoices/export.csv", { responseType: "blob" });
+      const r = await api.get("/invoices/export.csv", {
+        params: filterParams,
+        responseType: "blob",
+      });
       const url = URL.createObjectURL(r.data),
         a = document.createElement("a");
       a.href = url;
@@ -67,6 +79,8 @@ export function Invoices() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      setExporting(false);
     }
   }
   const resetPage = (fn) => (e) => {
@@ -84,9 +98,11 @@ export function Invoices() {
             <button
               onClick={exportCsv}
               className="btn btn-outline-secondary me-2"
+              disabled={exporting}
+              aria-busy={exporting}
             >
               <i className="bi bi-download me-2" />
-              Export CSV
+              {exporting ? "Preparing CSV…" : "Export CSV"}
             </button>
             <Link to="/invoices/new" className="btn btn-primary">
               <i className="bi bi-plus-lg me-2" />

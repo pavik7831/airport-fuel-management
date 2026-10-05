@@ -14,6 +14,7 @@ import { Invoices } from "./Invoices";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const page = { items: [], total: 0, page: 1, pages: 0 };
@@ -87,5 +88,47 @@ describe("invoice list integration", () => {
     expect(
       await screen.findByText("Billing API unavailable"),
     ).toBeInTheDocument();
+  });
+
+  it("exports only the invoices matching the active filters", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window.HTMLAnchorElement.prototype, "click").mockImplementation(
+      () => {},
+    );
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:invoices"),
+      revokeObjectURL: vi.fn(),
+    });
+    const get = vi.spyOn(api, "get").mockImplementation((path) => {
+      if (path === "/airlines" || path === "/providers")
+        return Promise.resolve({ data: { items: [] } });
+      if (path === "/invoices") return Promise.resolve({ data: page });
+      if (path === "/invoices/export.csv")
+        return Promise.resolve({ data: new Blob(["reference\nINV-1"]) });
+      throw new Error(`unexpected request: ${path}`);
+    });
+
+    render(
+      <MemoryRouter>
+        <Invoices />
+      </MemoryRouter>,
+    );
+    await screen.findByText("No invoices found");
+    await user.type(screen.getByLabelText("Search invoice reference"), "INV-1");
+    await user.selectOptions(screen.getByLabelText("Filter status"), "DRAFT");
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/invoices/export.csv", {
+        params: {
+          q: "INV-1",
+          airline_id: undefined,
+          provider_id: undefined,
+          billing_month: undefined,
+          status: "DRAFT",
+        },
+        responseType: "blob",
+      }),
+    );
   });
 });

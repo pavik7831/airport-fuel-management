@@ -61,6 +61,27 @@ def is_rate_overlap_violation(exc: IntegrityError) -> bool:
     return getattr(diagnostic, "constraint_name", None) == "ex_rate_active_period_no_overlap"
 
 
+def invoice_filters(
+    q: str,
+    airline_id: int | None,
+    provider_id: int | None,
+    billing_month: date | None,
+    status: str | None,
+):
+    filters = []
+    if q:
+        filters.append(Invoice.reference.ilike(f"%{q}%"))
+    if airline_id is not None:
+        filters.append(Invoice.airline_id == airline_id)
+    if provider_id is not None:
+        filters.append(Invoice.provider_id == provider_id)
+    if billing_month:
+        filters.append(Invoice.billing_month == billing_month.replace(day=1))
+    if status:
+        filters.append(Invoice.status == status.upper())
+    return filters
+
+
 @asynccontextmanager
 async def lifespan(_app):
     yield
@@ -433,18 +454,7 @@ async def list_invoices(
     _: Admin = Depends(current_admin),
 ):
     stmt, count = select(Invoice), select(func.count()).select_from(Invoice)
-    filters = []
-    if q:
-        filters.append(Invoice.reference.ilike(f"%{q}%"))
-    if airline_id:
-        filters.append(Invoice.airline_id == airline_id)
-    if provider_id:
-        filters.append(Invoice.provider_id == provider_id)
-    if billing_month:
-        filters.append(Invoice.billing_month == billing_month.replace(day=1))
-    if status:
-        filters.append(Invoice.status == status.upper())
-    for condition in filters:
+    for condition in invoice_filters(q, airline_id, provider_id, billing_month, status):
         stmt, count = stmt.where(condition), count.where(condition)
     total = await db.scalar(count)
     rows = (
@@ -481,8 +491,21 @@ async def put_invoice(
 
 
 @app.get("/api/v1/invoices/export.csv")
-async def export_invoices(db: AsyncSession = Depends(get_db), _: Admin = Depends(current_admin)):
-    rows = (await db.scalars(select(Invoice).order_by(Invoice.invoice_date.desc()))).all()
+async def export_invoices(
+    db: AsyncSession = Depends(get_db),
+    _: Admin = Depends(current_admin),
+    q: str = "",
+    airline_id: int | None = None,
+    provider_id: int | None = None,
+    billing_month: date | None = None,
+    status: str | None = None,
+):
+    stmt = (
+        select(Invoice)
+        .where(*invoice_filters(q, airline_id, provider_id, billing_month, status))
+        .order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    )
+    rows = (await db.scalars(stmt)).all()
     stream = io.StringIO()
     writer = csv.writer(stream)
     writer.writerow(

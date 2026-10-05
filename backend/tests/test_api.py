@@ -159,6 +159,19 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert (await client.get("/api/v1/invoices?q=INV-API")).json()["total"] == 1
     assert (await client.get(f"/api/v1/invoices/{invoice_id}")).json()["rate_per_unit"] == "2.50000"
     assert "'=INV-API-001" in (await client.get("/api/v1/invoices/export.csv")).text
+    filtered_export = await client.get(
+        "/api/v1/invoices/export.csv",
+        params={
+            "q": "INV-API",
+            "airline_id": airline_id,
+            "provider_id": provider_id,
+            "billing_month": date_today,
+            "status": "DRAFT",
+        },
+    )
+    assert "'=INV-API-001" in filtered_export.text
+    empty_export = await client.get("/api/v1/invoices/export.csv", params={"q": "no-match"})
+    assert "'=INV-API-001" not in empty_export.text
 
     dashboard = (await client.get("/api/v1/dashboard")).json()
     assert dashboard["active_providers"] == 1
