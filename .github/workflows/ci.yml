@@ -28,7 +28,7 @@ jobs:
           --health-cmd="pg_isready -U afm -d afm"
           --health-interval=10s
           --health-timeout=5s
-          --retries=5
+          --health-retries=5
     env:
       DATABASE_URL: postgresql+asyncpg://afm:afm@localhost:5432/afm
       JWT_SECRET: afm-ci-jwt-secret-must-be-at-least-32-characters
@@ -120,7 +120,7 @@ jobs:
           --health-cmd="pg_isready -U afm -d afm"
           --health-interval=10s
           --health-timeout=5s
-          --retries=5
+          --health-retries=5
     env:
       DATABASE_URL: postgresql+asyncpg://afm:afm@localhost:5432/afm
       JWT_SECRET: afm-ci-jwt-secret-must-be-at-least-32-characters
