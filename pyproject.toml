@@ -2,9 +2,9 @@
 name = "airport-fuel-management"
 version = "1.0.0"
 requires-python = ">=3.12,<3.14"
-dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1", "sqlalchemy[asyncio]>=2.0.38,<3", "asyncpg>=0.30,<1", "alembic>=1.15,<2", "pydantic-settings>=2.8,<3", "email-validator>=2.2,<3", "pwdlib[argon2]>=0.2,<1", "PyJWT>=2.10,<3", "python-multipart>=0.0.20,<1", "slowapi>=0.1.9,<1"]
+dependencies = ["fastapi>=0.142.2,<1", "uvicorn[standard]>=0.54.0,<1", "sqlalchemy[asyncio]>=2.1.2,<3", "asyncpg>=0.31.0,<1", "alembic>=1.20.0,<2", "pydantic-settings>=2.15.0,<3", "email-validator>=2.3.0,<3", "pwdlib[argon2]>=0.3.1,<1", "PyJWT>=2.15.1,<3", "python-multipart>=0.0.32,<1", "slowapi>=0.1.10,<1"]
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<9", "pytest-cov>=6,<7", "pytest-asyncio>=0.25,<1", "httpx>=0.28,<1", "ruff>=0.11,<1", "aiosqlite>=0.21,<1"]
+dev = ["pytest>=8.3,<9", "pytest-cov>=6,<7", "pytest-asyncio>=0.25,<1", "httpx>=0.28,<1", "ruff>=0.16.10,<1", "aiosqlite>=0.22.1,<1"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
