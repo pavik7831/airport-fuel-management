@@ -158,7 +158,9 @@ test("login, configure fuel network, invoice billing, verify amount, and logout"
     page.getByRole("heading", { name: "Outstanding receivables" }),
   ).toBeVisible();
   await expect(page.getByText("1 open invoice · USD")).toBeVisible();
-  await expect(page.getByText("$50.00")).toBeVisible();
+  await expect(
+    page.locator(".airline-summary").getByText("$50.00"),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
