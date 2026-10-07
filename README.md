@@ -1,6 +1,19 @@
 # Airport Fuel Management System
 
+[![CI](https://github.com/pavik7831/airport-fuel-management/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pavik7831/airport-fuel-management/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/pavik7831/airport-fuel-management/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/pavik7831/airport-fuel-management/actions/workflows/codeql.yml)
+
 AFM is a full-stack, administrator-operated aviation fuel billing application. It manages fuel providers, airlines, effective dated fuel prices and monthly invoice records with server-calculated amounts and immutable historical rate snapshots.
+
+## Project quality and operational status
+
+| Area | Evidence |
+| --- | --- |
+| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests. |
+| Backend coverage | Pytest enforces a 100% coverage threshold; CI retains an XML coverage artifact for each tested Python version. This is a backend threshold, not a claim about frontend coverage. |
+| Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. |
+| Deployment | Docker Compose deployment and operational guidance are documented below. This repository is not deployed to production. |
+| Documentation | Setup, configuration, migrations, backups, security, testing, and deployment instructions are maintained in this README. |
 
 ## Features and architecture
 
@@ -16,7 +29,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 
 ## Technology and supported versions
 
-Python 3.12 (verified locally); Python 3.13 is declared in package metadata and configured in CI, pending its first run. Node.js 22 LTS (22+), PostgreSQL 16 (16+). Python dependency pins are in `requirements.lock`; JavaScript exact resolution is in `frontend/package-lock.json`. Docker uses Python 3.12, Node 22 and PostgreSQL 16.
+Python 3.12 and 3.13 are tested in CI. Node.js 22 LTS (22+), PostgreSQL 16 (16+). Python dependency pins are in `requirements.lock`; JavaScript exact resolution is in `frontend/package-lock.json`. Docker uses Python 3.12, Node 22 and PostgreSQL 16.
 
 ## Project structure
 
@@ -120,7 +133,7 @@ For database backup: `docker compose exec -T db pg_dump -U afm afm > afm-backup.
 
 Liveness is `/health/live`; readiness verifies database connectivity at `/health/ready`. API errors are deliberately brief; request correlation IDs are echoed as `X-Request-ID`. Provider/airline deletion is deactivation. Rate periods cannot overlap through application validation and referenced rates are immutable. Financial identifiers use database uniqueness. ORM statements are parameterized. Nginx adds baseline browser headers; terminate TLS at a trusted proxy and set HSTS there. Review dependencies regularly. The current UI loads Google Fonts via CSS; remove that import for environments requiring zero third-party requests.
 
-`npm audit --omit=dev` reported no production dependency vulnerabilities. Full `npm audit` reports two moderate advisories in the Vitest mocker dependency with no npm fix available at the time of the run. Review again when upgrading the test toolchain.
+The current frontend lockfile passes `npm audit --audit-level=moderate`; CI repeats this check on every run. Re-run the audit when dependencies change.
 
 ## CI
 

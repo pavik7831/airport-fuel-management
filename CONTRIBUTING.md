@@ -21,6 +21,7 @@ From `frontend/`, run:
 ```powershell
 npm audit --audit-level=moderate
 npm run lint
+npm run typecheck
 npm run format:check
 npm test
 npm run build
