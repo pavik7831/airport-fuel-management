@@ -190,3 +190,16 @@ jobs:
       - name: Run PostgreSQL browser journey
         working-directory: frontend
         run: npm run test:e2e
+
+      - name: Verify PostgreSQL backup and restore
+        env:
+          PGPASSWORD: afm
+        run: |
+          pg_dump --format=custom --no-owner --no-privileges \
+            --host=localhost --username=afm --dbname=afm \
+            --file="$RUNNER_TEMP/afm-backup.dump"
+          createdb --host=localhost --username=afm afm_restore
+          pg_restore --exit-on-error --no-owner --no-privileges \
+            --host=localhost --username=afm --dbname=afm_restore \
+            "$RUNNER_TEMP/afm-backup.dump"
+          python scripts/verify_postgres_restore.py --source afm --restored afm_restore

@@ -9,7 +9,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 
 | Area | Evidence |
 | --- | --- |
-| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests. |
+| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests, then restores the test database and compares all application table rows and sequence states. |
 | Main branch safeguards | `main` requires pull requests and passing Python 3.12/3.13 backend, frontend, PostgreSQL browser, and both CodeQL checks; approvals are optional, and bypass, force-push, and deletion are disabled. |
 | Backend coverage | Pytest enforces a 100% coverage threshold; CI retains an XML coverage artifact for each tested Python version. This is a backend threshold, not a claim about frontend coverage. |
 | Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. |
@@ -128,7 +128,7 @@ The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 32
 
 Set `.env` including a strong `POSTGRES_PASSWORD`, DB URL (compose overrides host to `db`), JWT/CSRF secrets, and origins. `docker compose up --build -d` starts PostgreSQL with a persistent volume, applies migrations before API start, and serves the UI on `127.0.0.1:8080`; PostgreSQL is not published. Compose waits for PostgreSQL and the API readiness check before starting the frontend. Nginx proxies `/api` and `/health` internally. Put a TLS reverse proxy/load balancer in front, restrict inbound access, set the exact public `FRONTEND_ORIGINS`, `COOKIE_SECURE=true`, and keep the database volume private. Do not bake secrets into images.
 
-For database backup: `docker compose exec -T db pg_dump -U afm afm > afm-backup.sql`. Restore to an empty or separately provisioned DB with `docker compose exec -T db psql -U afm afm < afm-backup.sql`; validate backups and recovery regularly. Use managed secret storage and PostgreSQL point-in-time recovery for production. This repository is not deployed and makes no HTTPS claim.
+Create a logical database backup with `docker compose exec -T db pg_dump -U afm -Fc afm > afm-backup.dump`. To rehearse a restore without touching the application database, create a separate empty database with `docker compose exec -T db createdb -U afm afm_restore`, then restore with `docker compose exec -T db pg_restore -U afm --exit-on-error --no-owner --no-privileges -d afm_restore < afm-backup.dump`. Verify the restored application and data before routing traffic to it; remove the rehearsal database with `docker compose exec -T db dropdb -U afm afm_restore` when finished. After the PostgreSQL browser journey creates invoice, payment, and audit data, CI takes a custom-format dump, restores it into a separate empty database, and compares every non-system table's rows and PostgreSQL sequence definitions and values. The check also requires the journey's invoice, payment, and audit tables to contain data. This verifies logical dump/restore integrity for generated test data; it is not a production backup, encrypted off-site backup, disaster-recovery, or recovery-time test. Use encrypted off-site backups, managed secret storage, and PostgreSQL point-in-time recovery for production. This repository is not deployed and makes no HTTPS claim.
 
 ## Operations and security
 
@@ -138,11 +138,11 @@ The current frontend lockfile passes `npm audit --audit-level=moderate`; CI repe
 
 ## CI
 
-GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state.
+GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, TypeScript, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. After the journey, CI restores a custom-format PostgreSQL dump into a second disposable database and verifies exact application-table row and sequence-state equality. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state. The restore verifier can also be run with `python scripts/verify_postgres_restore.py --source afm --restored afm_restore` when both disposable databases are available.
 
 ## Limitations to address before a regulated production launch
 
 - Maintain the 100% backend coverage gate as routes and services change.
 - Confirm the hosted Playwright run passes against PostgreSQL and retain its result before production use.
 - Add receivables aging and payment reconciliation before using the payment ledger for collections operations.
-- Perform a formal threat model, external dependency scan, accessibility audit, backup restore drill and load test before handling live financial records.
+- Perform a formal threat model, accessibility audit, load test, and recovery-time-tested restore from the intended encrypted production backups before handling live financial records.
