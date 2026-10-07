@@ -10,6 +10,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 | Area | Evidence |
 | --- | --- |
 | Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests. |
+| Main branch safeguards | `main` requires pull requests and passing Python 3.12/3.13 backend, frontend, PostgreSQL browser, and both CodeQL checks; approvals are optional, and bypass, force-push, and deletion are disabled. |
 | Backend coverage | Pytest enforces a 100% coverage threshold; CI retains an XML coverage artifact for each tested Python version. This is a backend threshold, not a claim about frontend coverage. |
 | Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. |
 | Deployment | Docker Compose deployment and operational guidance are documented below. This repository is not deployed to production. |
