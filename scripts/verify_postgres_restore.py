@@ -28,7 +28,7 @@ def _query(database: str, statement: str) -> str:
                 database,
                 "--command",
                 statement,
-            ]
+            ],
             check=True,
             capture_output=True,
             text=True,
