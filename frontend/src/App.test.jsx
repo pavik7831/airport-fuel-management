@@ -29,6 +29,7 @@ describe("AFM authentication shell", () => {
             recent_invoices: [],
             provider_totals: [],
             airline_totals: [],
+            outstanding_receivables: [],
           },
         });
       return Promise.reject(new Error(`unexpected request: ${path}`));
@@ -91,6 +92,7 @@ describe("AFM authentication shell", () => {
             recent_invoices: [],
             provider_totals: [],
             airline_totals: [],
+            outstanding_receivables: [],
           },
         });
       return Promise.reject(new Error("unexpected request"));
@@ -119,6 +121,7 @@ describe("AFM authentication shell", () => {
       recent_invoices: [],
       provider_totals: [],
       airline_totals: [],
+      outstanding_receivables: [],
     };
     let sessionChecks = 0;
     vi.spyOn(api, "get").mockImplementation((path) => {
@@ -190,6 +193,7 @@ describe("AFM authentication shell", () => {
             recent_invoices: [],
             provider_totals: [],
             airline_totals: [],
+            outstanding_receivables: [],
           },
         });
       return Promise.reject(new Error("unexpected request"));
@@ -222,6 +226,7 @@ describe("AFM authentication shell", () => {
       recent_invoices: [],
       provider_totals: [],
       airline_totals: [],
+      outstanding_receivables: [],
     };
     vi.spyOn(api, "get").mockImplementation((path) => {
       if (path === "/auth/me")

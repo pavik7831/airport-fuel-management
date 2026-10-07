@@ -25,6 +25,7 @@ describe("dashboard analytics", () => {
         recent_invoices: [],
         provider_totals: [],
         airline_totals: [],
+        outstanding_receivables: [],
       },
     });
     render(
@@ -42,5 +43,40 @@ describe("dashboard analytics", () => {
         params: { months: 6 },
       }),
     );
+  });
+
+  it("shows receivables grouped by currency without combining balances", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        active_providers: 0,
+        active_airlines: 0,
+        active_rates: 0,
+        total_invoices: 2,
+        current_month_count: 0,
+        current_month_amounts: [],
+        monthly_totals: [],
+        recent_invoices: [],
+        provider_totals: [],
+        airline_totals: [],
+        outstanding_receivables: [
+          { currency: "USD", balance_due: "150.00", invoice_count: 2 },
+          { currency: "EUR", balance_due: "75.50", invoice_count: 1 },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Outstanding receivables" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/2 open invoices · USD/)).toBeInTheDocument();
+    expect(screen.getByText("$150.00")).toBeInTheDocument();
+    expect(screen.getByText(/1 open invoice · EUR/)).toBeInTheDocument();
+    expect(screen.getByText("€75.50")).toBeInTheDocument();
   });
 });

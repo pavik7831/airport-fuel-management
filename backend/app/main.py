@@ -18,7 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.config import settings
 from backend.app.db import engine, get_db
-from backend.app.models import Admin, Airline, FuelRate, Invoice, Provider
+from backend.app.models import Admin, Airline, FuelRate, Invoice, InvoicePayment, Provider
 from backend.app.schemas import (
     CancelIn,
     EntityIn,
@@ -685,6 +685,30 @@ async def dashboard(
             .limit(10)
         )
     ).all()
+    payment_totals = (
+        select(
+            InvoicePayment.invoice_id.label("invoice_id"),
+            func.sum(InvoicePayment.amount).label("paid_amount"),
+        )
+        .group_by(InvoicePayment.invoice_id)
+        .subquery()
+    )
+    outstanding_receivables = (
+        await db.execute(
+            select(
+                Invoice.currency,
+                func.sum(Invoice.total_amount - func.coalesce(payment_totals.c.paid_amount, 0)),
+                func.count(Invoice.id),
+            )
+            .outerjoin(payment_totals, Invoice.id == payment_totals.c.invoice_id)
+            .where(
+                Invoice.status == "FINALIZED",
+                Invoice.total_amount > func.coalesce(payment_totals.c.paid_amount, 0),
+            )
+            .group_by(Invoice.currency)
+            .order_by(Invoice.currency)
+        )
+    ).all()
     return {
         "active_providers": active_providers,
         "active_airlines": active_airlines,
@@ -702,5 +726,9 @@ async def dashboard(
         ],
         "airline_totals": [
             {"name": n, "currency": c, "total": str(t or 0)} for n, c, t in airlines
+        ],
+        "outstanding_receivables": [
+            {"currency": currency, "balance_due": str(balance or 0), "invoice_count": count}
+            for currency, balance, count in outstanding_receivables
         ],
     }

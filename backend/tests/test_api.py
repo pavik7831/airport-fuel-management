@@ -221,6 +221,8 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert partial_payment.json()["balance_due"] == "150.00"
     assert partial_payment.json()["payment_status"] == "PARTIALLY_PAID"
     assert partial_payment.json()["payments"][0]["reference"] == "BANK-TRANSFER-1"
+    receivables = (await client.get("/api/v1/dashboard")).json()["outstanding_receivables"]
+    assert receivables == [{"currency": "USD", "balance_due": "150.00", "invoice_count": 1}]
     payment_list = await client.get("/api/v1/invoices?q=INV-API-001")
     assert payment_list.json()["items"][0]["paid_amount"] == "100.00"
     assert payment_list.json()["items"][0]["balance_due"] == "150.00"
@@ -240,6 +242,7 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert completed_payment.status_code == 201
     assert completed_payment.json()["balance_due"] == "0.00"
     assert completed_payment.json()["payment_status"] == "PAID"
+    assert (await client.get("/api/v1/dashboard")).json()["outstanding_receivables"] == []
     async with client.session_factory() as session:
         admin = await session.scalar(select(Admin).where(Admin.username == "operator"))
         with pytest.raises(HTTPException) as paid_invoice:

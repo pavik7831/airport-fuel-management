@@ -234,6 +234,39 @@ export function Dashboard() {
           </div>
         </div>
       </section>
+      <section
+        className="panel table-panel"
+        aria-labelledby="receivables-heading"
+      >
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">BILLING & COLLECTIONS</span>
+            <h2 id="receivables-heading">Outstanding receivables</h2>
+          </div>
+          <Link className="text-link" to="/invoices">
+            Review invoices <i className="bi bi-arrow-up-right" />
+          </Link>
+        </div>
+        {data.outstanding_receivables.length ? (
+          <div className="airline-summary-grid">
+            {data.outstanding_receivables.map((receivable) => (
+              <div className="airline-summary" key={receivable.currency}>
+                <span>
+                  {receivable.invoice_count} open{" "}
+                  {receivable.invoice_count === 1 ? "invoice" : "invoices"} ·{" "}
+                  {receivable.currency}
+                </span>
+                <b>{currency(receivable.balance_due, receivable.currency)}</b>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty
+            title="No outstanding receivables"
+            detail="Finalized invoices with an unpaid balance will appear here."
+          />
+        )}
+      </section>
       <section className="panel table-panel dashboard-summary">
         <div className="panel-head">
           <div>

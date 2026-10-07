@@ -11,6 +11,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 - Invoice references are globally unique. This allows multiple invoices per airline/provider/month while preventing duplicate references. PostgreSQL uniqueness is the concurrency authority.
 - Active provider/rate/airline checks, soft deactivation and FK restrictions preserve financial history. Active rate periods are protected both by API validation and a PostgreSQL GiST exclusion constraint, including concurrent writes. Dashboard excludes cancelled amounts and groups by currency to avoid combining unlike currencies.
 - Finalized invoices accept immutable, dated partial-payment entries with optional references and notes. The API computes paid totals and balances from the ledger, rejects overpayments, and records payment events in the invoice audit history.
+- The operations dashboard summarizes open finalized-invoice balances per currency, excluding drafts, fully paid invoices, and cancellations.
 - Invoice CSV exports neutralize spreadsheet formula prefixes; dashboard monthly/provider/airline summaries use the selected 3–36 month billing window.
 
 ## Technology and supported versions
@@ -104,7 +105,7 @@ Pull requests and pushes to `main`/`master` are configured to run backend checks
 
 Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent rate-overlap and payment-overpayment checks, invoice creation, finalization, partial payment recording and balance verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
 
-The latest local backend verification passed 67 tests with 100% statement coverage across 1,403 statements, along with Ruff lint and formatting checks. The frontend has 17 passing tests, lint and formatting checks, and a production build. The Playwright browser journey previously passed locally against PostgreSQL 16 and verifies concurrent rate-overlap protection; the new concurrent-payment browser step awaits a run against PostgreSQL. API and service unit tests use isolated SQLite databases. Re-run CI after changes are pushed; local checks do not replace the PostgreSQL-backed workflow.
+Local checks are run with the commands below; GitHub Actions runs backend checks on Python 3.12 and 3.13, the frontend suite, and the PostgreSQL browser journey. Unit tests use isolated SQLite databases, while CI validates PostgreSQL behavior against PostgreSQL 16.
 
 The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 328 kB CSS (49 kB gzip), plus Bootstrap icon fonts. Management pages load as separate route chunks; consider trimming unused Bootstrap CSS if the interface grows substantially.
 
