@@ -9,7 +9,7 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 
 | Area | Evidence |
 | --- | --- |
-| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests, then restores the test database and compares all application table rows and sequence states. |
+| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests. Browser checks include axe-core WCAG 2.1 A/AA scans of sign-in, dashboard, and invoice-payment screens, then restore the test database and compare all application table rows and sequence states. |
 | Main branch safeguards | `main` requires pull requests and passing Python 3.12/3.13 backend, frontend, PostgreSQL browser, and both CodeQL checks; approvals are optional, and bypass, force-push, and deletion are disabled. |
 | Backend coverage | Pytest enforces a 100% coverage threshold; CI retains an XML coverage artifact for each tested Python version. This is a backend threshold, not a claim about frontend coverage. |
 | Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. |
@@ -138,7 +138,7 @@ The current frontend lockfile passes `npm audit --audit-level=moderate`; CI repe
 
 ## CI
 
-GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, TypeScript, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. After the journey, CI restores a custom-format PostgreSQL dump into a second disposable database and verifies exact application-table row and sequence-state equality. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state. The restore verifier can also be run with `python scripts/verify_postgres_restore.py --source afm --restored afm_restore` when both disposable databases are available.
+GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, TypeScript, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. Playwright runs axe-core WCAG 2.1 A/AA checks against the sign-in page, authenticated dashboard, and invoice-payment detail screen. Automated axe checks are a regression guard, not a substitute for manual keyboard, screen-reader, zoom, and assistive-technology review. After the journey, CI restores a custom-format PostgreSQL dump into a second disposable database and verifies exact application-table row and sequence-state equality. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state. The restore verifier can also be run with `python scripts/verify_postgres_restore.py --source afm --restored afm_restore` when both disposable databases are available.
 
 ## Limitations to address before a regulated production launch
 

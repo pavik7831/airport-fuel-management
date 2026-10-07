@@ -8,7 +8,7 @@
   --blue: #1876b9;
   --cyan: #26a6a1;
   --ink: #17334b;
-  --muted: #718397;
+  --muted: #596d7f;
   --border: #e6edf2;
   --paper: #fff;
 }
@@ -223,7 +223,7 @@ h2 {
 }
 .crumb span {
   font-weight: 400;
-  color: #93a2b0;
+  color: #536b7b;
 }
 .crumb i {
   font-size: 9px;
@@ -240,7 +240,7 @@ h2 {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.2px;
-  color: #8294a5;
+  color: #536b7b;
 }
 .top-divider {
   width: 1px;
@@ -259,7 +259,7 @@ h2 {
 }
 .profile small {
   font-size: 10px;
-  color: #8091a0;
+  color: #536b7b;
 }
 .avatar {
   width: 31px;
@@ -286,7 +286,7 @@ h2 {
   margin-bottom: 24px;
 }
 .page-heading .eyebrow {
-  color: #25859b;
+  color: #176c80;
   margin: 0 0 7px;
 }
 .muted {
@@ -357,7 +357,7 @@ h2 {
 .metric-label,
 .metric-card small {
   display: block;
-  color: #75889a;
+  color: #536b7b;
   font-size: 11px;
 }
 .metric-card strong {
@@ -387,11 +387,11 @@ h2 {
   margin-bottom: 17px;
 }
 .panel-head .eyebrow {
-  color: #8396a7;
+  color: #536b7b;
 }
 .live-tag {
   font-size: 8px;
-  color: #55907c;
+  color: #287657;
   letter-spacing: 1px;
   font-weight: 700;
 }
@@ -410,7 +410,7 @@ h2 {
 }
 .month-callout span {
   display: block;
-  color: #8293a1;
+  color: #536b7b;
   font-size: 8px;
   letter-spacing: 1px;
   font-weight: 700;
@@ -422,7 +422,7 @@ h2 {
 }
 .month-callout b small {
   font-size: 10px;
-  color: #8b9aa7;
+  color: #536b7b;
   font-family: "DM Sans";
 }
 .month-callout > strong {
@@ -445,7 +445,7 @@ h2 {
   align-items: center;
   justify-content: end;
   gap: 6px;
-  color: #90a0ac;
+  color: #536b7b;
   font-size: 9px;
 }
 .bar-track {
@@ -468,7 +468,7 @@ h2 {
   justify-content: space-between;
   align-items: center;
   margin-top: 11px;
-  color: #748797;
+  color: #536b7b;
   font-size: 9px;
 }
 .chart-legend i {
@@ -481,13 +481,13 @@ h2 {
 }
 .chart-legend small {
   font-size: 9px;
-  color: #99a6b1;
+  color: #536b7b;
 }
 .breakdown-panel {
   min-height: 287px;
 }
 .text-link {
-  color: #1682a6;
+  color: #0b6787;
   text-decoration: none;
   font-weight: 600;
   font-size: 10px;
@@ -546,7 +546,7 @@ h2 {
   justify-content: space-between;
   padding-top: 15px;
   font-size: 10px;
-  color: #77899a;
+  color: #536b7b;
 }
 .mini-stat b {
   color: #1a3b53;
@@ -565,7 +565,7 @@ h2 {
 .table thead th {
   font-size: 8px;
   letter-spacing: 0.8px;
-  color: #8d9ba7;
+  color: #536b7b;
   font-weight: 700;
   border-bottom: 1px solid #e9eef2;
   padding: 11px 13px;
@@ -628,7 +628,7 @@ h2 {
   padding: 12px 35px 17px;
   display: flex;
   justify-content: space-between;
-  color: #97a5b0;
+  color: #536b7b;
   font-size: 9px;
   border-top: 1px solid #e9eef1;
 }
@@ -694,7 +694,7 @@ h2 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #8a9ba8;
+  color: #536b7b;
   gap: 7px;
   font-size: 11px;
 }
@@ -802,7 +802,7 @@ h2 {
   margin-bottom: 22px;
 }
 .login-card .eyebrow {
-  color: #17839c;
+  color: #116c80;
   margin-bottom: 7px;
 }
 .login-card h1 {
@@ -831,7 +831,7 @@ h2 {
   text-align: center;
   font-size: 8px;
   letter-spacing: 1.2px;
-  color: #9aabb7;
+  color: #5e707f;
 }
 .screen-center {
   height: 100vh;

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { expectWcag21AA } from "./accessibility";
 
 test("login, configure fuel network, invoice billing, verify amount, and logout", async ({
   page,
@@ -18,6 +19,7 @@ test("login, configure fuel network, invoice billing, verify amount, and logout"
   await expect(
     page.getByRole("heading", { name: /operations dashboard/i }),
   ).toBeVisible();
+  await expectWcag21AA(page);
 
   await page.goto("/providers");
   await page.getByRole("button", { name: /add provider/i }).click();
@@ -152,6 +154,7 @@ test("login, configure fuel network, invoice billing, verify amount, and logout"
     "$50.00",
   );
   await expect(page.getByText(`WIRE-${suffix}`)).toBeVisible();
+  await expectWcag21AA(page);
 
   await page.goto("/");
   await expect(
