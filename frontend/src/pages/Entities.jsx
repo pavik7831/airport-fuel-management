@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "../api";
+import { useLatestRequest } from "../useLatestRequest";
 import { Empty, ErrorBox, Loading, PageHeading, Pager } from "../components/UI";
 
 const entityFields = (kind) => [
@@ -23,23 +24,29 @@ export function EntityPage({ type, title, singular }) {
     [edit, setEdit] = useState(null),
     [busy, setBusy] = useState(false),
     [page, setPage] = useState(1);
+  const runLatestRequest = useLatestRequest();
   const load = useCallback(
     () =>
-      api
-        .get(`/${type}`, {
-          params: {
-            q,
-            active: status === "" ? undefined : status === "true",
-            page,
-            page_size: 10,
-          },
-        })
-        .then(({ data: d }) => {
-          setData(d);
-          setError("");
-        })
-        .catch((e) => setError(errorMessage(e))),
-    [type, q, status, page],
+      runLatestRequest(async (signal) => {
+        try {
+          const { data: d } = await api.get(`/${type}`, {
+            params: {
+              q,
+              active: status === "" ? undefined : status === "true",
+              page,
+              page_size: 10,
+            },
+            signal,
+          });
+          if (!signal.aborted) {
+            setData(d);
+            setError("");
+          }
+        } catch (e) {
+          if (!signal.aborted) setError(errorMessage(e));
+        }
+      }),
+    [type, q, status, page, runLatestRequest],
   );
   useEffect(() => {
     load();

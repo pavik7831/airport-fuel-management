@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMessage } from "../api";
+import { useLatestRequest } from "../useLatestRequest";
 import {
   Empty,
   ErrorBox,
@@ -14,15 +15,23 @@ export function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [months, setMonths] = useState(12);
+  const runLatestRequest = useLatestRequest();
   useEffect(() => {
-    api
-      .get("/dashboard", { params: { months } })
-      .then(({ data: d }) => {
-        setData(d);
-        setError("");
-      })
-      .catch((e) => setError(errorMessage(e)));
-  }, [months]);
+    runLatestRequest(async (signal) => {
+      try {
+        const { data: d } = await api.get("/dashboard", {
+          params: { months },
+          signal,
+        });
+        if (!signal.aborted) {
+          setData(d);
+          setError("");
+        }
+      } catch (e) {
+        if (!signal.aborted) setError(errorMessage(e));
+      }
+    });
+  }, [months, runLatestRequest]);
   if (error)
     return (
       <>
