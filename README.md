@@ -25,7 +25,8 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 - Invoice references are globally unique. This allows multiple invoices per airline/provider/month while preventing duplicate references. PostgreSQL uniqueness is the concurrency authority.
 - Active provider/rate/airline checks, soft deactivation and FK restrictions preserve financial history. Active rate periods are protected both by API validation and a PostgreSQL GiST exclusion constraint, including concurrent writes. Dashboard excludes cancelled amounts and groups by currency to avoid combining unlike currencies.
 - Finalized invoices accept immutable, dated partial-payment entries with optional references and notes. The API computes paid totals and balances from the ledger, rejects overpayments, and records payment events in the invoice audit history.
-- The operations dashboard summarizes open finalized-invoice balances per currency, excluding drafts, fully paid invoices, and cancellations.
+- Draft invoices default to net-30 payment terms, with an editable due date that cannot precede the invoice date. Existing invoices are backfilled to invoice date plus 30 days.
+- The operations dashboard summarizes open finalized-invoice balances by currency and due-date aging bucket, excluding drafts, fully paid invoices, and cancellations.
 - Invoice CSV exports neutralize spreadsheet formula prefixes; dashboard monthly/provider/airline summaries use the selected 3–36 month billing window.
 
 ## Technology and supported versions
@@ -82,7 +83,7 @@ Access tokens expire after `ACCESS_TOKEN_MINUTES` (default 30). Authentication i
 
 ## Database and migrations
 
-Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Revision `0003_invoice_payments` adds the immutable invoice payment ledger. Before upgrading an existing database to `0002_rate_period_exclusion`, resolve any conflicts returned by:
+Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Revision `0003_invoice_payments` adds the immutable invoice payment ledger. Revision `0004_invoice_due_dates` adds due dates and backfills existing invoices to net 30 from invoice date. Before upgrading an existing database to `0002_rate_period_exclusion`, resolve any conflicts returned by:
 
 ```sql
 SELECT a.id, b.id, a.provider_id, a.fuel_type

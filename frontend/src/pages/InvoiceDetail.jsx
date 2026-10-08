@@ -121,6 +121,10 @@ export function InvoiceDetail() {
             <b>{row.invoice_date}</b>
           </div>
           <div>
+            <span>PAYMENT DUE DATE</span>
+            <b>{row.due_date}</b>
+          </div>
+          <div>
             <span>BILLING PERIOD</span>
             <b>
               {new Date(`${row.billing_month}T00:00:00`).toLocaleString(

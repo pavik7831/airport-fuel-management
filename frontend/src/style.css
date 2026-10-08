@@ -867,7 +867,7 @@ h2 {
 }
 .invoice-meta {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 21px 0;
   border-bottom: 1px solid #e8edf0;
 }
@@ -1092,6 +1092,7 @@ h2 {
   }
   .invoice-meta {
     gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
   }
   .invoice-meta b {
     font-size: 10px;

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { api } from "../api";
@@ -55,6 +61,13 @@ describe("invoice form", () => {
       await screen.findByLabelText(/invoice reference/i),
       "DEMO-001",
     );
+    const invoiceDate = screen.getByLabelText(/invoice date/i);
+    fireEvent.change(invoiceDate, { target: { value: "2026-01-15" } });
+    const dueDate = screen.getByLabelText(/payment due date/i);
+    expect(dueDate).toHaveValue("2026-02-14");
+    fireEvent.change(dueDate, { target: { value: "2026-02-20" } });
+    fireEvent.change(invoiceDate, { target: { value: "2026-01-16" } });
+    expect(dueDate).toHaveValue("2026-02-20");
     await user.selectOptions(await screen.findByLabelText(/^airline/i), "3");
     await user.selectOptions(screen.getByLabelText(/fuel provider/i), "5");
     await user.type(screen.getByLabelText(/fuel type/i), "JET A-1");
@@ -68,6 +81,8 @@ describe("invoice form", () => {
       "/invoices",
       expect.objectContaining({
         reference: "DEMO-001",
+        invoice_date: "2026-01-16",
+        due_date: "2026-02-20",
         airline_id: 3,
         provider_id: 5,
         fuel_type: "JET A-1",
@@ -104,5 +119,42 @@ describe("invoice form", () => {
     expect(
       screen.getByRole("button", { name: /create draft invoice/i }),
     ).toBeDisabled();
+  });
+
+  it("loads the saved due date when editing a draft invoice", async () => {
+    vi.spyOn(api, "get").mockImplementation((path) => {
+      if (path === "/config")
+        return Promise.resolve({
+          data: { default_quantity_unit: "US_GALLON", default_currency: "USD" },
+        });
+      if (path === "/airlines") return Promise.resolve({ data: { items: [] } });
+      if (path === "/providers")
+        return Promise.resolve({ data: { items: [] } });
+      if (path === "/invoices/9")
+        return Promise.resolve({
+          data: {
+            id: 9,
+            status: "DRAFT",
+            invoice_date: "2026-01-15",
+            due_date: "2026-03-01",
+          },
+        });
+      return Promise.reject(new Error(`unexpected request: ${path}`));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/invoices/9/edit"]}>
+        <Routes>
+          <Route path="/invoices/:id/edit" element={<InvoiceForm />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByLabelText(/invoice date/i)).toHaveValue(
+      "2026-01-15",
+    );
+    expect(screen.getByLabelText(/payment due date/i)).toHaveValue(
+      "2026-03-01",
+    );
   });
 });

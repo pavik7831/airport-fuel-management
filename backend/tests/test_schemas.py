@@ -33,6 +33,7 @@ def test_business_fields_are_normalized_at_the_api_boundary():
     assert invoice.reference == "INV-1"
     assert invoice.fuel_type == "JET A-1"
     assert invoice.notes is None
+    assert invoice.due_date.isoformat() == "2026-02-14"
 
 
 def test_cancellation_reason_cannot_be_only_whitespace():
@@ -64,3 +65,30 @@ def test_rate_date_order_and_optional_invoice_notes():
         notes=None,
     )
     assert invoice.notes is None
+    assert invoice.due_date.isoformat() == "2026-02-14"
+
+
+def test_invoice_due_date_is_editable_but_cannot_precede_invoice_date():
+    invoice = InvoiceIn(
+        reference="INV-DUE-DATE",
+        airline_id=1,
+        provider_id=1,
+        billing_month="2026-01-01",
+        invoice_date="2026-01-15",
+        due_date="2026-03-01",
+        fuel_type="JET A-1",
+        quantity="1",
+    )
+    assert invoice.due_date.isoformat() == "2026-03-01"
+
+    with pytest.raises(ValidationError, match="due_date must be on or after invoice_date"):
+        InvoiceIn(
+            reference="INV-INVALID-DUE-DATE",
+            airline_id=1,
+            provider_id=1,
+            billing_month="2026-01-01",
+            invoice_date="2026-01-15",
+            due_date="2026-01-14",
+            fuel_type="JET A-1",
+            quantity="1",
+        )

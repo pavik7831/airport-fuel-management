@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -20,7 +20,15 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite://")
 from backend.app import main  # noqa: E402
 from backend.app.db import get_db  # noqa: E402
 from backend.app.main import app, is_rate_overlap_violation, safe_csv_cell  # noqa: E402
-from backend.app.models import Admin, Airline, Base, FuelRate, Provider  # noqa: E402
+from backend.app.models import (  # noqa: E402
+    Admin,
+    Airline,
+    Base,
+    FuelRate,
+    Invoice,
+    InvoicePayment,
+    Provider,
+)
 from backend.app.schemas import CancelIn, EntityIn, InvoiceIn, LoginIn, RateIn  # noqa: E402
 from backend.app.security import hash_password  # noqa: E402
 
@@ -163,6 +171,10 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert created.json()["reference"] == "=INV-API-001"
     assert created.json()["subtotal"] == "250.00"
     assert created.json()["total_amount"] == "250.00"
+    assert (
+        created.json()["due_date"]
+        == (date.fromisoformat(date_today) + timedelta(days=30)).isoformat()
+    )
     assert (await client.get("/api/v1/invoices?q=INV-API")).json()["total"] == 1
     assert (await client.get(f"/api/v1/invoices/{invoice_id}")).json()["rate_per_unit"] == "2.50000"
     assert "'=INV-API-001" in (await client.get("/api/v1/invoices/export.csv")).text
@@ -235,6 +247,7 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert payment_list.json()["items"][0]["balance_due"] == "150.00"
     payment_export = await client.get("/api/v1/invoices/export.csv", params={"q": "INV-API-001"})
     assert "100.00,150.00,PARTIALLY_PAID" in payment_export.text
+    assert date_today in payment_export.text
     excessive_payment = await client.post(
         f"/api/v1/invoices/{invoice_id}/payments",
         json={"amount": "150.01", "payment_date": date_today},
@@ -264,6 +277,140 @@ async def test_authenticated_full_invoice_api_journey(client):
     assert edit.status_code == 409
     assert (await client.post("/api/v1/auth/logout", headers=headers)).status_code == 200
     assert (await client.get("/api/v1/auth/me")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_receivables_aging_groups_open_balances_by_due_date_and_currency(client):
+    login = await client.post(
+        "/api/v1/auth/login", json={"username": "operator", "password": "long-test-password"}
+    )
+    assert login.status_code == 200
+    today = date.today()
+
+    async with client.session_factory() as session:
+        admin = await session.scalar(select(Admin).where(Admin.username == "operator"))
+        provider = Provider(code="AGE-FUEL", name="Aging Fuel")
+        airline = Airline(code="AGE-AIR", name="Aging Air")
+        session.add_all([provider, airline])
+        await session.flush()
+        rate = FuelRate(
+            provider_id=provider.id,
+            fuel_type="JET A-1",
+            rate_per_unit=Decimal("1.00000"),
+            currency="USD",
+            effective_from=today - timedelta(days=365),
+            active=True,
+        )
+        session.add(rate)
+        await session.flush()
+        buckets = (
+            ("CURRENT", today, Decimal("100.00"), None),
+            ("DAYS_1_30", today - timedelta(days=1), Decimal("200.00"), Decimal("50.00")),
+            ("DAYS_31_60", today - timedelta(days=31), Decimal("300.00"), None),
+            ("DAYS_61_90", today - timedelta(days=61), Decimal("400.00"), None),
+            ("DAYS_91_PLUS", today - timedelta(days=91), Decimal("500.00"), None),
+        )
+        invoices = []
+        for name, due_date, total, payment_amount in buckets:
+            invoice = Invoice(
+                reference=f"AGING-{name}",
+                airline_id=airline.id,
+                provider_id=provider.id,
+                rate_id=rate.id,
+                airline_code=airline.code,
+                airline_name=airline.name,
+                provider_code=provider.code,
+                provider_name=provider.name,
+                billing_month=today.replace(day=1),
+                invoice_date=due_date - timedelta(days=30),
+                due_date=due_date,
+                fuel_type=rate.fuel_type,
+                quantity=total,
+                rate_per_unit=rate.rate_per_unit,
+                currency="USD",
+                subtotal=total,
+                tax_amount=Decimal("0.00"),
+                total_amount=total,
+                status="FINALIZED",
+            )
+            session.add(invoice)
+            invoices.append((invoice, payment_amount))
+
+        foreign_currency = Invoice(
+            reference="AGING-EUR",
+            airline_id=airline.id,
+            provider_id=provider.id,
+            rate_id=rate.id,
+            airline_code=airline.code,
+            airline_name=airline.name,
+            provider_code=provider.code,
+            provider_name=provider.name,
+            billing_month=today.replace(day=1),
+            invoice_date=today - timedelta(days=130),
+            due_date=today - timedelta(days=100),
+            fuel_type=rate.fuel_type,
+            quantity=Decimal("25.00"),
+            rate_per_unit=rate.rate_per_unit,
+            currency="EUR",
+            subtotal=Decimal("25.00"),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal("25.00"),
+            status="FINALIZED",
+        )
+        excluded_draft = Invoice(
+            reference="AGING-DRAFT",
+            airline_id=airline.id,
+            provider_id=provider.id,
+            rate_id=rate.id,
+            airline_code=airline.code,
+            airline_name=airline.name,
+            provider_code=provider.code,
+            provider_name=provider.name,
+            billing_month=today.replace(day=1),
+            invoice_date=today - timedelta(days=130),
+            due_date=today - timedelta(days=100),
+            fuel_type=rate.fuel_type,
+            quantity=Decimal("10.00"),
+            rate_per_unit=rate.rate_per_unit,
+            currency="USD",
+            subtotal=Decimal("10.00"),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal("10.00"),
+            status="DRAFT",
+        )
+        session.add_all([foreign_currency, excluded_draft])
+        await session.flush()
+        for invoice, payment_amount in invoices:
+            if payment_amount:
+                session.add(
+                    InvoicePayment(
+                        invoice_id=invoice.id,
+                        admin_id=admin.id,
+                        amount=payment_amount,
+                        payment_date=today,
+                    )
+                )
+        await session.commit()
+
+    dashboard = (await client.get("/api/v1/dashboard")).json()
+    aging = {row["currency"]: row for row in dashboard["receivables_aging"]}
+    assert aging["USD"] == {
+        "currency": "USD",
+        "current": "100.00",
+        "days_1_30": "150.00",
+        "days_31_60": "300.00",
+        "days_61_90": "400.00",
+        "days_91_plus": "500.00",
+        "total_balance": "1450.00",
+        "invoice_count": 5,
+    }
+    assert aging["EUR"]["days_91_plus"] == "25.00"
+    assert aging["EUR"]["total_balance"] == "25.00"
+    assert aging["EUR"]["invoice_count"] == 1
+    async with client.session_factory() as session:
+        admin = await session.scalar(select(Admin).where(Admin.username == "operator"))
+        direct_dashboard = await main.dashboard(12, session, admin)
+    assert direct_dashboard["receivables_aging"] == dashboard["receivables_aging"]
 
 
 @pytest.mark.asyncio

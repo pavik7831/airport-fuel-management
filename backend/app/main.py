@@ -3,7 +3,8 @@ import io
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -518,6 +519,8 @@ async def export_invoices(
             "airline",
             "provider",
             "billing_month",
+            "invoice_date",
+            "due_date",
             "fuel_type",
             "quantity",
             "rate",
@@ -539,6 +542,8 @@ async def export_invoices(
                 x.airline_name,
                 x.provider_name,
                 x.billing_month,
+                x.invoice_date,
+                x.due_date,
                 x.fuel_type,
                 x.quantity,
                 x.rate_per_unit,
@@ -693,6 +698,46 @@ async def dashboard(
         .group_by(InvoicePayment.invoice_id)
         .subquery()
     )
+    today = date.today()
+    aging_bucket = case(
+        (Invoice.due_date >= today, "CURRENT"),
+        (Invoice.due_date >= today - timedelta(days=30), "DAYS_1_30"),
+        (Invoice.due_date >= today - timedelta(days=60), "DAYS_31_60"),
+        (Invoice.due_date >= today - timedelta(days=90), "DAYS_61_90"),
+        else_="DAYS_91_PLUS",
+    ).label("aging_bucket")
+    aging_rows = (
+        await db.execute(
+            select(
+                Invoice.currency,
+                aging_bucket,
+                func.sum(Invoice.total_amount - func.coalesce(payment_totals.c.paid_amount, 0)),
+                func.count(Invoice.id),
+            )
+            .outerjoin(payment_totals, Invoice.id == payment_totals.c.invoice_id)
+            .where(
+                Invoice.status == "FINALIZED",
+                Invoice.total_amount > func.coalesce(payment_totals.c.paid_amount, 0),
+            )
+            .group_by(Invoice.currency, aging_bucket)
+            .order_by(Invoice.currency, aging_bucket)
+        )
+    ).all()
+    aging_by_currency = {}
+    aging_buckets = ("CURRENT", "DAYS_1_30", "DAYS_31_60", "DAYS_61_90", "DAYS_91_PLUS")
+    for currency_code, bucket, balance, count in aging_rows:
+        row = aging_by_currency.setdefault(
+            currency_code,
+            {
+                "currency": currency_code,
+                **{name.lower(): Decimal("0.00") for name in aging_buckets},
+                "total_balance": Decimal("0.00"),
+                "invoice_count": 0,
+            },
+        )
+        row[bucket.lower()] = Decimal(balance or 0)
+        row["total_balance"] += Decimal(balance or 0)
+        row["invoice_count"] += count
     outstanding_receivables = (
         await db.execute(
             select(
@@ -730,5 +775,16 @@ async def dashboard(
         "outstanding_receivables": [
             {"currency": currency, "balance_due": str(balance or 0), "invoice_count": count}
             for currency, balance, count in outstanding_receivables
+        ],
+        "receivables_aging": [
+            {
+                **row,
+                **{
+                    key: str(value)
+                    for key, value in row.items()
+                    if key != "currency" and key != "invoice_count"
+                },
+            }
+            for row in aging_by_currency.values()
         ],
     }
