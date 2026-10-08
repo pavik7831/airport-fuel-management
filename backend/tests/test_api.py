@@ -42,6 +42,13 @@ def test_postgres_rate_overlap_constraint_and_conflict_mapping():
     assert not is_rate_overlap_violation(unrelated)
 
 
+def test_production_app_does_not_mount_legacy_api_routes():
+    paths = {getattr(route, "path", "") for route in app.routes}
+    assert "/api/providers" not in paths
+    assert "/api/auth/login" not in paths
+    assert "/api/v1/providers" in paths
+
+
 @pytest.fixture
 async def client():
     engine = create_async_engine(
