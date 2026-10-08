@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMessage } from "../api";
+import { useLatestRequest } from "../useLatestRequest";
 import {
   Empty,
   ErrorBox,
@@ -14,15 +15,23 @@ export function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [months, setMonths] = useState(12);
+  const runLatestRequest = useLatestRequest();
   useEffect(() => {
-    api
-      .get("/dashboard", { params: { months } })
-      .then(({ data: d }) => {
-        setData(d);
-        setError("");
-      })
-      .catch((e) => setError(errorMessage(e)));
-  }, [months]);
+    runLatestRequest(async (signal) => {
+      try {
+        const { data: d } = await api.get("/dashboard", {
+          params: { months },
+          signal,
+        });
+        if (!signal.aborted) {
+          setData(d);
+          setError("");
+        }
+      } catch (e) {
+        if (!signal.aborted) setError(errorMessage(e));
+      }
+    });
+  }, [months, runLatestRequest]);
   if (error)
     return (
       <>
@@ -264,6 +273,79 @@ export function Dashboard() {
           <Empty
             title="No outstanding receivables"
             detail="Finalized invoices with an unpaid balance will appear here."
+          />
+        )}
+      </section>
+      <section className="panel table-panel" aria-labelledby="aging-heading">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">COLLECTIONS</span>
+            <h2 id="aging-heading">Receivables aging</h2>
+          </div>
+          <span className="muted">
+            Age is measured from each invoice due date
+          </span>
+        </div>
+        {(data.receivables_aging || []).length ? (
+          <div className="table-responsive">
+            <table
+              className="table aging-table"
+              aria-label="Receivables aging by currency and days overdue"
+            >
+              <thead>
+                <tr>
+                  <th scope="col">CURRENCY</th>
+                  <th scope="col" className="text-end">
+                    CURRENT
+                  </th>
+                  <th scope="col" className="text-end">
+                    1–30 DAYS
+                  </th>
+                  <th scope="col" className="text-end">
+                    31–60 DAYS
+                  </th>
+                  <th scope="col" className="text-end">
+                    61–90 DAYS
+                  </th>
+                  <th scope="col" className="text-end">
+                    91+ DAYS
+                  </th>
+                  <th scope="col" className="text-end">
+                    TOTAL OUTSTANDING
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.receivables_aging.map((row) => (
+                  <tr key={row.currency}>
+                    <th scope="row">{row.currency}</th>
+                    <td className="text-end">
+                      {currency(row.current, row.currency)}
+                    </td>
+                    <td className="text-end">
+                      {currency(row.days_1_30, row.currency)}
+                    </td>
+                    <td className="text-end">
+                      {currency(row.days_31_60, row.currency)}
+                    </td>
+                    <td className="text-end">
+                      {currency(row.days_61_90, row.currency)}
+                    </td>
+                    <td className="text-end">
+                      {currency(row.days_91_plus, row.currency)}
+                    </td>
+                    <td className="text-end fw-bold">
+                      {currency(row.total_balance, row.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty
+            title="No invoices to age"
+            detail="Unpaid finalized invoices are grouped here by due date and currency."
           />
         )}
       </section>

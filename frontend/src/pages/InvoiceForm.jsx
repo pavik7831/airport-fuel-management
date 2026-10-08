@@ -3,6 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import { ErrorBox, PageHeading } from "../components/UI";
 
+function addDays(value, days) {
+  const result = new Date(`${value}T00:00:00.000Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
 export function InvoiceForm() {
   const { id } = useParams();
   const [initial, setInitial] = useState(null),
@@ -60,6 +66,27 @@ export function InvoiceForm() {
     }
   }
   const value = (key, fallback = "") => initial?.[key] ?? fallback;
+  const invoiceDate = value(
+    "invoice_date",
+    new Date().toISOString().slice(0, 10),
+  );
+  if (id && !initial) {
+    return (
+      <>
+        <PageHeading
+          eyebrow="BILLING / EDIT DRAFT"
+          title="Edit draft invoice"
+          subtitle="Loading the saved draft before it can be edited."
+        />
+        <ErrorBox error={error} />
+        <div className="panel form-panel invoice-form-panel" role="status">
+          {error
+            ? "Invoice details could not be loaded."
+            : "Loading draft invoice…"}
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <PageHeading
@@ -73,7 +100,8 @@ export function InvoiceForm() {
           <i className="bi bi-shield-check" />
           <span>
             Invoice totals are calculated by the server using the effective rate
-            for the invoice date. Tax defaults to zero.
+            for the invoice date. Due date defaults to 30 days after invoice
+            date and can be adjusted. Tax defaults to zero.
           </span>
         </div>
         <form onSubmit={submit} className="form-grid">
@@ -95,10 +123,28 @@ export function InvoiceForm() {
               type="date"
               name="invoice_date"
               required
-              defaultValue={value(
-                "invoice_date",
-                new Date().toISOString().slice(0, 10),
-              )}
+              defaultValue={invoiceDate}
+              onChange={(event) => {
+                const dueDate =
+                  event.currentTarget.form.elements.namedItem("due_date");
+                dueDate.min = event.currentTarget.value;
+                if (dueDate.dataset.userEdited !== "true")
+                  dueDate.value = addDays(event.currentTarget.value, 30);
+              }}
+            />
+          </label>
+          <label>
+            Payment due date *
+            <input
+              className="form-control"
+              type="date"
+              name="due_date"
+              min={invoiceDate}
+              required
+              defaultValue={value("due_date", addDays(invoiceDate, 30))}
+              onChange={(event) => {
+                event.currentTarget.dataset.userEdited = "true";
+              }}
             />
           </label>
           <label>

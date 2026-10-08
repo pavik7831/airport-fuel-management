@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMessage } from "../api";
+import { useLatestRequest } from "../useLatestRequest";
 import {
   Empty,
   ErrorBox,
@@ -22,6 +23,8 @@ export function Invoices() {
     [providers, setProviders] = useState([]),
     [page, setPage] = useState(1),
     [exporting, setExporting] = useState(false);
+  const runLatestListRequest = useLatestRequest();
+  const runLatestOptionsRequest = useLatestRequest();
   const filterParams = useMemo(
     () => ({
       q,
@@ -34,32 +37,42 @@ export function Invoices() {
   );
   const hasFilters = Boolean(q || airline || provider || month || status);
   useEffect(() => {
-    Promise.all([
-      api.get("/airlines", { params: { page_size: 100 } }),
-      api.get("/providers", { params: { page_size: 100 } }),
-    ])
-      .then(([a, p]) => {
-        setAirlines(a.data.items);
-        setProviders(p.data.items);
-      })
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
+    runLatestOptionsRequest(async (signal) => {
+      try {
+        const [a, p] = await Promise.all([
+          api.get("/airlines", { params: { page_size: 100 }, signal }),
+          api.get("/providers", { params: { page_size: 100 }, signal }),
+        ]);
+        if (!signal.aborted) {
+          setAirlines(a.data.items);
+          setProviders(p.data.items);
+        }
+      } catch (e) {
+        if (!signal.aborted) setError(errorMessage(e));
+      }
+    });
+  }, [runLatestOptionsRequest]);
   const load = useCallback(
     () =>
-      api
-        .get("/invoices", {
-          params: {
-            ...filterParams,
-            page,
-            page_size: 10,
-          },
-        })
-        .then((r) => {
-          setData(r.data);
-          setError("");
-        })
-        .catch((e) => setError(errorMessage(e))),
-    [filterParams, page],
+      runLatestListRequest(async (signal) => {
+        try {
+          const r = await api.get("/invoices", {
+            params: {
+              ...filterParams,
+              page,
+              page_size: 10,
+            },
+            signal,
+          });
+          if (!signal.aborted) {
+            setData(r.data);
+            setError("");
+          }
+        } catch (e) {
+          if (!signal.aborted) setError(errorMessage(e));
+        }
+      }),
+    [filterParams, page, runLatestListRequest],
   );
   useEffect(() => {
     load();

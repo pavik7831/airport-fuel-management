@@ -1,7 +1,15 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 
 class LoginIn(BaseModel):
@@ -93,10 +101,19 @@ class InvoiceIn(BaseModel):
     provider_id: int
     billing_month: date
     invoice_date: date
+    due_date: date | None = None
     fuel_type: str = Field(min_length=1, max_length=40)
     quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     tax_amount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def default_and_validate_due_date(self):
+        if self.due_date is None:
+            self.due_date = self.invoice_date + timedelta(days=30)
+        elif self.due_date < self.invoice_date:
+            raise ValueError("due_date must be on or after invoice_date")
+        return self
 
     @field_validator("reference", mode="before")
     @classmethod
@@ -150,6 +167,7 @@ class InvoiceOut(BaseModel):
     provider_code: str
     billing_month: date
     invoice_date: date
+    due_date: date
     fuel_type: str
     quantity: Decimal
     rate_per_unit: Decimal

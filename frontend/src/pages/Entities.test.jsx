@@ -49,15 +49,23 @@ describe("master data management", () => {
 
     await user.selectOptions(screen.getByLabelText("Filter status"), "true");
     await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith("/providers", {
-        params: { q: "", active: true, page: 1, page_size: 10 },
-      }),
+      expect(get).toHaveBeenLastCalledWith(
+        "/providers",
+        expect.objectContaining({
+          params: { q: "", active: true, page: 1, page_size: 10 },
+          signal: expect.objectContaining({ aborted: false }),
+        }),
+      ),
     );
     await user.type(screen.getByRole("textbox", { name: "Search" }), "north");
     await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith("/providers", {
-        params: { q: "north", active: true, page: 1, page_size: 10 },
-      }),
+      expect(get).toHaveBeenLastCalledWith(
+        "/providers",
+        expect.objectContaining({
+          params: { q: "north", active: true, page: 1, page_size: 10 },
+          signal: expect.objectContaining({ aborted: false }),
+        }),
+      ),
     );
 
     await user.click(

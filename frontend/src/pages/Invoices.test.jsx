@@ -56,17 +56,21 @@ describe("invoice list integration", () => {
     );
 
     await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith("/invoices", {
-        params: {
-          q: "MAY-26",
-          airline_id: "3",
-          provider_id: "5",
-          billing_month: "2026-05-01",
-          status: "FINALIZED",
-          page: 1,
-          page_size: 10,
-        },
-      }),
+      expect(get).toHaveBeenLastCalledWith(
+        "/invoices",
+        expect.objectContaining({
+          params: {
+            q: "MAY-26",
+            airline_id: "3",
+            provider_id: "5",
+            billing_month: "2026-05-01",
+            status: "FINALIZED",
+            page: 1,
+            page_size: 10,
+          },
+          signal: expect.objectContaining({ aborted: false }),
+        }),
+      ),
     );
   });
 
@@ -135,17 +139,21 @@ describe("invoice list integration", () => {
       await screen.findByText("Create an invoice to start monthly billing."),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith("/invoices", {
-        params: {
-          q: "",
-          airline_id: undefined,
-          provider_id: undefined,
-          billing_month: undefined,
-          status: undefined,
-          page: 1,
-          page_size: 10,
-        },
-      }),
+      expect(get).toHaveBeenLastCalledWith(
+        "/invoices",
+        expect.objectContaining({
+          params: {
+            q: "",
+            airline_id: undefined,
+            provider_id: undefined,
+            billing_month: undefined,
+            status: undefined,
+            page: 1,
+            page_size: 10,
+          },
+          signal: expect.objectContaining({ aborted: false }),
+        }),
+      ),
     );
     expect(
       screen.queryByRole("button", { name: /clear filters/i }),

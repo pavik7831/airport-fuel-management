@@ -9,10 +9,10 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 
 | Area | Evidence |
 | --- | --- |
-| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests, then restores the test database and compares all application table rows and sequence states. |
+| Automated checks | GitHub Actions runs backend, frontend, and PostgreSQL-backed browser checks on pushes and pull requests. Browser checks include axe-core WCAG 2.1 A/AA scans of sign-in, dashboard, and invoice-payment screens, a bounded authenticated API concurrency smoke against disposable PostgreSQL data, then a restore check comparing application table rows and sequence states. |
 | Main branch safeguards | `main` requires pull requests and passing Python 3.12/3.13 backend, frontend, PostgreSQL browser, and both CodeQL checks; approvals are optional, and bypass, force-push, and deletion are disabled. |
 | Backend coverage | Pytest enforces a 100% coverage threshold; CI retains an XML coverage artifact for each tested Python version. This is a backend threshold, not a claim about frontend coverage. |
-| Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. |
+| Security and maintenance | CodeQL scans Python and JavaScript/TypeScript on pushes, pull requests, and weekly; Dependabot checks Python, npm, and GitHub Actions dependencies weekly. CI also runs the npm advisory audit. [The threat model](./docs/THREAT_MODEL.md) documents controls and deployment-specific residual risks; it is not an independent security audit. |
 | Deployment | Docker Compose deployment and operational guidance are documented below. This repository is not deployed to production. |
 | Documentation | Setup, configuration, migrations, backups, security, testing, and deployment instructions are maintained in this README. |
 
@@ -25,7 +25,8 @@ AFM is a full-stack, administrator-operated aviation fuel billing application. I
 - Invoice references are globally unique. This allows multiple invoices per airline/provider/month while preventing duplicate references. PostgreSQL uniqueness is the concurrency authority.
 - Active provider/rate/airline checks, soft deactivation and FK restrictions preserve financial history. Active rate periods are protected both by API validation and a PostgreSQL GiST exclusion constraint, including concurrent writes. Dashboard excludes cancelled amounts and groups by currency to avoid combining unlike currencies.
 - Finalized invoices accept immutable, dated partial-payment entries with optional references and notes. The API computes paid totals and balances from the ledger, rejects overpayments, and records payment events in the invoice audit history.
-- The operations dashboard summarizes open finalized-invoice balances per currency, excluding drafts, fully paid invoices, and cancellations.
+- Draft invoices default to net-30 payment terms, with an editable due date that cannot precede the invoice date. Existing invoices are backfilled to invoice date plus 30 days.
+- The operations dashboard summarizes open finalized-invoice balances by currency and due-date aging bucket, excluding drafts, fully paid invoices, and cancellations.
 - Invoice CSV exports neutralize spreadsheet formula prefixes; dashboard monthly/provider/airline summaries use the selected 3–36 month billing window.
 
 ## Technology and supported versions
@@ -82,7 +83,7 @@ Access tokens expire after `ACCESS_TOKEN_MINUTES` (default 30). Authentication i
 
 ## Database and migrations
 
-Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Revision `0003_invoice_payments` adds the immutable invoice payment ledger. Before upgrading an existing database to `0002_rate_period_exclusion`, resolve any conflicts returned by:
+Create the schema with `alembic upgrade head`. Inspect migration state with `alembic current` and `alembic history`. Create reviewed revisions with `alembic revision --autogenerate -m "description"`; check generated DDL before deploying. Rollback one revision with `alembic downgrade -1` only after a backup and review. Migration `0001_initial` downgrade removes the initial schema and is suitable only for an empty/new installation, never as a routine production rollback. App startup never creates or resets tables. Revision `0002_rate_period_exclusion` enables PostgreSQL's `btree_gist` extension and rejects overlapping active periods per provider and fuel type at the database level. Revision `0003_invoice_payments` adds the immutable invoice payment ledger. Revision `0004_invoice_due_dates` adds due dates and backfills existing invoices to net 30 from invoice date. Before upgrading an existing database to `0002_rate_period_exclusion`, resolve any conflicts returned by:
 
 ```sql
 SELECT a.id, b.id, a.provider_id, a.fuel_type
@@ -120,6 +121,8 @@ Pull requests and pushes to `main`/`master` are configured to run backend checks
 
 Playwright requires a dedicated API and disposable database, plus `E2E_USERNAME` / `E2E_PASSWORD`. Its browser journey exercises administrator login, provider and airline creation, rate creation, concurrent rate-overlap and payment-overpayment checks, invoice creation, finalization, partial payment recording and balance verification, then logout. Install Chromium using `npx playwright install --with-deps chromium`, then run `npm run test:e2e` from `frontend`. CI provisions PostgreSQL and runs this journey with isolated test credentials.
 
+After that journey, CI runs a read-only API concurrency smoke against its loopback-only disposable server: 10 workers for 15 seconds exercise dashboard, provider, airline, rate, and invoice list endpoints using the test administrator session. The check requires successful responses and aggregate p95 latency no higher than 2 seconds; CI retains a JSON report artifact. To run it locally, start the API against a disposable database, set `E2E_USERNAME` and `E2E_PASSWORD`, and run `python scripts/api_load_smoke.py`. The script refuses non-loopback targets, is bounded to at most 100 workers and 120 seconds, and does not mutate application records. It is a small CI regression smoke, not a capacity benchmark, realistic production-data test, or production SLO guarantee.
+
 Local checks are run with the commands below; GitHub Actions runs backend checks on Python 3.12 and 3.13, the frontend suite, and the PostgreSQL browser journey. Unit tests use isolated SQLite databases, while CI validates PostgreSQL behavior against PostgreSQL 16.
 
 The measured Vite output is about 324 kB initial JavaScript (106 kB gzip) and 328 kB CSS (49 kB gzip), plus Bootstrap icon fonts. Management pages load as separate route chunks; consider trimming unused Bootstrap CSS if the interface grows substantially.
@@ -134,15 +137,15 @@ Create a logical database backup with `docker compose exec -T db pg_dump -U afm 
 
 Liveness is `/health/live`; readiness verifies database connectivity at `/health/ready`. API errors are deliberately brief; request correlation IDs are echoed as `X-Request-ID`. Provider/airline deletion is deactivation. Rate periods cannot overlap through application validation and referenced rates are immutable. Financial identifiers use database uniqueness. ORM statements are parameterized. Nginx adds baseline browser headers; terminate TLS at a trusted proxy and set HSTS there. Review dependencies regularly. The current UI loads Google Fonts via CSS; remove that import for environments requiring zero third-party requests.
 
-The current frontend lockfile passes `npm audit --audit-level=moderate`; CI repeats this check on every run. Re-run the audit when dependencies change.
+The current frontend lockfile passes `npm audit --audit-level=moderate`; CI repeats this check on every run. Re-run the audit when dependencies change. See [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) for the internal threat model, residual risks, and production readiness gates.
 
 ## CI
 
-GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, TypeScript, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. After the journey, CI restores a custom-format PostgreSQL dump into a second disposable database and verifies exact application-table row and sequence-state equality. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state. The restore verifier can also be run with `python scripts/verify_postgres_restore.py --source afm --restored afm_restore` when both disposable databases are available.
+GitHub Actions validates the Docker Compose configuration, runs Ruff lint/format checks, Alembic migrations against PostgreSQL 16, pytest with a coverage artifact, npm lockfile install, ESLint, TypeScript, Prettier formatting checks, Vitest, a production build, and the Playwright browser journey against an ephemeral PostgreSQL-backed API. Playwright runs axe-core WCAG 2.1 A/AA checks against the sign-in page, authenticated dashboard, and invoice-payment detail screen. Automated axe checks are a regression guard, not a substitute for manual keyboard, screen-reader, zoom, and assistive-technology review. After the journey, CI runs a bounded read-only API concurrency smoke and restores a custom-format PostgreSQL dump into a second disposable database, verifying exact application-table row and sequence-state equality. The load smoke report is retained as a CI artifact. API unit tests use isolated SQLite databases. CI uses test-only credentials and database state. The restore verifier can also be run with `python scripts/verify_postgres_restore.py --source afm --restored afm_restore` when both disposable databases are available.
 
 ## Limitations to address before a regulated production launch
 
 - Maintain the 100% backend coverage gate as routes and services change.
 - Confirm the hosted Playwright run passes against PostgreSQL and retain its result before production use.
 - Add receivables aging and payment reconciliation before using the payment ledger for collections operations.
-- Perform a formal threat model, accessibility audit, load test, and recovery-time-tested restore from the intended encrypted production backups before handling live financial records.
+- Perform a formal threat model, manual accessibility audit, representative load/capacity test, and recovery-time-tested restore from the intended encrypted production backups before handling live financial records. The CI concurrency smoke is not a substitute for these production-readiness exercises.

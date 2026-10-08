@@ -14,6 +14,7 @@ const invoice = {
   id: 7,
   reference: "INV-7",
   invoice_date: "2026-10-01",
+  due_date: "2026-10-31",
   billing_month: "2026-10-01",
   airline_name: "North Air",
   airline_code: "NORTH",
@@ -64,6 +65,7 @@ describe("invoice payment recording", () => {
     );
 
     await screen.findByText("No payments recorded yet.");
+    expect(screen.getByText("2026-10-31")).toBeInTheDocument();
     await user.type(screen.getByLabelText(/Payment amount/), "40.00");
     await user.type(screen.getByLabelText("Payment reference"), "WIRE-42");
     await user.type(screen.getByLabelText("Notes"), "First installment");

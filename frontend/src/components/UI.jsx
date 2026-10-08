@@ -97,6 +97,7 @@ export function InvoiceTable({ rows, compact = false }) {
                 <small className="cell-sub">
                   Invoice date · {r.invoice_date}
                 </small>
+                <small className="cell-sub">Due · {r.due_date}</small>
               </td>
               <td>
                 <b>{r.airline_name}</b>
