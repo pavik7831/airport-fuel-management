@@ -191,6 +191,13 @@ jobs:
         working-directory: frontend
         run: npm run test:e2e
 
+      - name: Run bounded read-only API concurrency smoke
+        run: >-
+          python scripts/api_load_smoke.py
+          --users 10
+          --duration 15
+          --json-output "$RUNNER_TEMP/afm-api-load-smoke.json"
+
       - name: Verify PostgreSQL backup and restore
         env:
           PGPASSWORD: afm
@@ -203,3 +210,11 @@ jobs:
             --host=localhost --username=afm --dbname=afm_restore \
             "$RUNNER_TEMP/afm-backup.dump"
           python scripts/verify_postgres_restore.py --source afm --restored afm_restore
+
+      - name: Upload API concurrency smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-concurrency-smoke
+          path: ${{ runner.temp }}/afm-api-load-smoke.json
+          if-no-files-found: ignore
